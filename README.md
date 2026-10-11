@@ -1,30 +1,13 @@
 # leafrun-infra
 
-Planned infrastructure for Leafrun: Kubernetes, PostgreSQL, S3, Redis, NATS, Temporal and Ory.
+## Make the services runnable
 
-**Status: planned component.** This repository currently contains its scope and roadmap links. It does not yet provide a runnable service or package. The existing local rendering prototype lives in [leafrun-generation](https://github.com/leafrun/leafrun-generation).
+This planned repository will hold deployment and operations files for the services: Kubernetes setup, databases, object storage, NATS, Temporal, Redis, Ory, and observability. It should provide a repeatable development environment before production scaling.
 
-## Responsibility
+Each service keeps its own application code and migrations. Infra wires those pieces together without owning document or access rules.
 
-Kubernetes configuration, ingress routes, Redis, NATS, PostgreSQL, S3 configuration, Temporal, Ory, secret store, observability.
+**Status:** this repository is a planned component. It has no runnable implementation yet. The working local renderer is in [leafrun-generation](https://github.com/leafrun/leafrun-generation).
 
-## Boundaries
+**First roadmap step:** [LEA-18 — Bring up object storage](https://linear.app/bulnik/issue/LEA-18/e03-s3-rezultaty-i-ochistka). Linear may require workspace access; the public [roadmap](https://github.com/leafrun/leafrun/blob/main/docs/roadmap.md) explains the build order. See the [repository map](https://github.com/leafrun/leafrun/blob/main/docs/repositories.md) and [contribution guide](https://github.com/leafrun/leafrun/blob/main/CONTRIBUTING.md).
 
-This repository owns deployment configuration and operational tooling, not domain business logic. Secrets must be supplied by the deployment environment.
-
-## Roadmap
-
-- [LEA-18 — S3 artifacts and garbage collection](https://linear.app/bulnik/issue/LEA-18/e03-s3-rezultaty-i-ochistka)
-- [LEA-25 — Reliable asynchronous server rendering](https://linear.app/bulnik/issue/LEA-25/e04-nadyozhnyj-asinhronnyj-servernyj-render)
-- [LEA-82 — Live collaboration and project ownership](https://linear.app/bulnik/issue/LEA-82/e11-live-collaboration-i-vladelec-proekta)
-- [LEA-114 — Caching, operations and scaling](https://linear.app/bulnik/issue/LEA-114/e15-keshirovanie-ekspluataciya-i-masshtabirovanie)
-
-See the [development roadmap](https://github.com/leafrun/leafrun/blob/main/docs/roadmap.md) for dependencies and acceptance milestones. Creating this repository does not complete its implementation issues.
-
-## Contributing
-
-Use English for code comments, documentation, examples, commit messages and pull requests. See the [contribution guide](https://github.com/leafrun/leafrun/blob/main/CONTRIBUTING.md) and [current architecture](https://github.com/leafrun/leafrun/blob/main/docs/architecture.md).
-
-## License status
-
-A project license has not been selected. No license is assigned by this repository scaffold.
+No project license has been selected yet.
