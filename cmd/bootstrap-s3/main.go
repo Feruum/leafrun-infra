@@ -28,26 +28,28 @@ func main() {
 		o.UsePathStyle = true
 	})
 	bucket := os.Getenv("LEAFRUN_STORAGE_S3_BUCKET")
-	if bucket != "leafrun-storage" {
+	if bucket != "leafrun-storage" && bucket != "leafrun-storage-test" {
 		log.Fatal("dedicated development bucket required")
 	}
-	for {
-		if _, err = client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: &bucket}); err == nil {
-			break
+	for _, bucket = range []string{"leafrun-storage", "leafrun-storage-test"} {
+		for {
+			if _, err = client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: &bucket}); err == nil {
+				break
+			}
+			select {
+			case <-ctx.Done():
+				log.Fatal("development bucket did not become ready")
+			case <-time.After(time.Second):
+			}
 		}
-		select {
-		case <-ctx.Done():
-			log.Fatal("development bucket did not become ready")
-		case <-time.After(time.Second):
+		_, err = client.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{Bucket: &bucket, VersioningConfiguration: &types.VersioningConfiguration{Status: types.BucketVersioningStatusEnabled}})
+		if err != nil {
+			log.Fatal(err)
+		}
+		out, err := client.GetBucketVersioning(ctx, &s3.GetBucketVersioningInput{Bucket: &bucket})
+		if err != nil || out.Status != types.BucketVersioningStatusEnabled {
+			log.Fatal("bucket versioning unavailable")
 		}
 	}
-	_, err = client.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{Bucket: &bucket, VersioningConfiguration: &types.VersioningConfiguration{Status: types.BucketVersioningStatusEnabled}})
-	if err != nil {
-		log.Fatal(err)
-	}
-	out, err := client.GetBucketVersioning(ctx, &s3.GetBucketVersioningInput{Bucket: &bucket})
-	if err != nil || out.Status != types.BucketVersioningStatusEnabled {
-		log.Fatal("bucket versioning unavailable")
-	}
-	fmt.Println("Dedicated private bucket versioning enabled")
+	fmt.Println("Separate stand and test bucket versioning enabled")
 }

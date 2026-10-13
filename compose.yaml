@@ -20,7 +20,7 @@ services:
     image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
     command: [mini, "-dir=/data", "-ip=seaweed", "-ip.bind=0.0.0.0", "-master.telemetry=false", "-admin.ui=false", "-webdav=false", "-s3.port.iceberg=0", "-s3.port.lance=0", "-s3.allowDeleteBucketNotEmpty=false", "-s3.config=/stand/s3.json"]
     environment:
-      S3_BUCKET: leafrun-storage
+      S3_BUCKET: leafrun-storage,leafrun-storage-test
     ports: ["127.0.0.1:58333:8333"]
     volumes: [seaweed-data:/data, "./.cache/s3.json:/stand/s3.json:ro"]
     restart: unless-stopped

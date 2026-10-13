@@ -25,19 +25,19 @@ cd infra
 docker --context desktop-linux compose --profile dev ps
 ```
 
-`init-env.ps1` generates ignored random credentials and preserves existing values. It writes private SeaweedFS identities under `.cache`. Bootstrap uses its own S3 administrator; Storage receives read/write/list/tag permissions only on `leafrun-storage`. Bucket versioning is enabled before the API starts. Startup probes exact-version operations and multipart support; a provider without required capabilities is rejected. Anonymous S3 access has no identity grant. Do not apply bucket lifecycle expiry to prefixes containing retained resources.
+`init-env.ps1` generates ignored random credentials and preserves existing values. It writes private SeaweedFS identities under `.cache`. Bootstrap uses its own S3 administrator; Storage receives read/write/list/tag permissions only on `leafrun-storage`. Tests have a separate role limited to `leafrun-storage-test`, so their catalog inventory cannot treat stand objects as orphans. Both buckets are versioned before the API starts. Startup probes exact-version operations and multipart support; a provider without required capabilities is rejected. Anonymous S3 access has no identity grant. Do not apply bucket lifecycle expiry to prefixes containing retained resources.
 
 `contexts.ps1` copies only tracked source into ignored build contexts; Git metadata, credentials, generated PDFs and local caches stay outside images. Dockerfiles create temporary workspaces. Nonroot runtime images contain the service executable and base certificates.
 
 | Service | Host endpoint | Internal database/storage |
 | --- | --- | --- |
 | PostgreSQL | `127.0.0.1:58432` | `storage`, `storage_test`, `temporal`, `temporal_visibility` |
-| SeaweedFS S3 | `127.0.0.1:58333` | private versioned `leafrun-storage` |
+| SeaweedFS S3 | `127.0.0.1:58333` | separate private versioned `leafrun-storage` / `leafrun-storage-test` |
 | Temporal | `127.0.0.1:57233` | PostgreSQL history/visibility; namespace `default`, 30-day history retention |
 | Storage API | `127.0.0.1:58081` | Storage-only catalog |
 | Dev owner fixture | `127.0.0.1:58082` | explicit mutable test evidence |
 
-PUBLIC database CONNECT grants are revoked. Storage cannot connect to Temporal databases, and Temporal cannot connect to Storage databases. `storage_test` is dedicated to destructive aging/race scenarios. The internal Temporal server explicitly permits unauthenticated frontend traffic on this development stand; production authentication is later infrastructure work.
+PUBLIC database CONNECT grants are revoked. Storage cannot connect to Temporal databases, and Temporal cannot connect to Storage databases. `storage_test` and its separate S3 bucket/role are dedicated to destructive aging/race scenarios. `TestS3CatalogIsolation` proves both roles cannot read or inventory the other's versions and anonymous object requests are denied. The internal Temporal server explicitly permits unauthenticated frontend traffic on this development stand; production authentication is later infrastructure work.
 
 ## Verification
 

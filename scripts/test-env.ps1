@@ -5,13 +5,15 @@ $taskRoot = [IO.Path]::GetFullPath((Join-Path $infraRoot '..'))
 . (Join-Path $PSScriptRoot 'workspace.ps1')
 $cfg=@{}
 Get-Content -LiteralPath (Join-Path $infraRoot '.env') | ForEach-Object { $key,$value=$_ -split '=',2; $cfg[$key]=$value }
-$env:AWS_ACCESS_KEY_ID=$cfg.S3_ACCESS_KEY
-$env:AWS_SECRET_ACCESS_KEY=$cfg.S3_SECRET_KEY
+$env:AWS_ACCESS_KEY_ID=$cfg.S3_TEST_ACCESS_KEY
+$env:AWS_SECRET_ACCESS_KEY=$cfg.S3_TEST_SECRET_KEY
 $env:AWS_REGION='us-east-1'
+$env:LEAFRUN_E03_STAND_S3_ACCESS_KEY=$cfg.S3_ACCESS_KEY
+$env:LEAFRUN_E03_STAND_S3_SECRET_KEY=$cfg.S3_SECRET_KEY
 $env:AWS_EC2_METADATA_DISABLED='true'
 $env:LEAFRUN_STORAGE_DATABASE_URL="postgres://storage:$($cfg.STORAGE_DB_PASSWORD)@127.0.0.1:58432/storage_test?sslmode=disable"
 $env:LEAFRUN_STORAGE_S3_ENDPOINT='http://127.0.0.1:58333'
-$env:LEAFRUN_STORAGE_S3_BUCKET='leafrun-storage'
+$env:LEAFRUN_STORAGE_S3_BUCKET='leafrun-storage-test'
 $env:LEAFRUN_STORAGE_OWNER_URL='http://127.0.0.1:58082'
 $env:LEAFRUN_STORAGE_OWNER_TOKEN=$cfg.OWNER_TOKEN
 $env:LEAFRUN_STORAGE_SERVICE_CREDENTIALS=@(@{token=$cfg.STORAGE_TOKEN;subject='demo';domain='core'}) | ConvertTo-Json -Compress -AsArray

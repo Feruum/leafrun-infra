@@ -13,8 +13,8 @@ try {
  $env:AWS_SECRET_ACCESS_KEY=$cfg.S3_ADMIN_SECRET_KEY
  go run ./cmd/bootstrap-s3
  if($LASTEXITCODE -ne 0){throw 'Versioning bootstrap failed'}
- $env:AWS_ACCESS_KEY_ID=$cfg.S3_ACCESS_KEY
- $env:AWS_SECRET_ACCESS_KEY=$cfg.S3_SECRET_KEY
+ $env:AWS_ACCESS_KEY_ID=$cfg.S3_TEST_ACCESS_KEY
+ $env:AWS_SECRET_ACCESS_KEY=$cfg.S3_TEST_SECRET_KEY
  docker --context $DockerContext compose --profile dev up -d --build storage-api storage-worker
  if($LASTEXITCODE -ne 0){throw 'Storage startup failed'}
 } finally {Pop-Location}
