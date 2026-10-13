@@ -1,0 +1,90 @@
+name: E03 verification
+on:
+  push:
+    branches: [main, develop, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: e03-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  stand:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: infra
+        shell: pwsh
+    steps:
+      - name: Check out Infra
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: infra
+          persist-credentials: false
+      - name: Read pinned dependencies
+        id: dependencies
+        run: |
+          $pins = Get-Content -Raw ci/dependencies.json | ConvertFrom-Json
+          $json = $pins | ConvertTo-Json -Depth 5 -Compress
+          "json=$json" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - name: Check out Core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ fromJSON(steps.dependencies.outputs.json).core.repository }}
+          ref: ${{ fromJSON(steps.dependencies.outputs.json).core.ref }}
+          path: core
+          persist-credentials: false
+      - name: Check out Contracts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ fromJSON(steps.dependencies.outputs.json).contracts.repository }}
+          ref: ${{ fromJSON(steps.dependencies.outputs.json).contracts.ref }}
+          path: contracts
+          persist-credentials: false
+      - name: Check out Storage
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ fromJSON(steps.dependencies.outputs.json).storage.repository }}
+          ref: ${{ fromJSON(steps.dependencies.outputs.json).storage.ref }}
+          path: storage
+          persist-credentials: false
+      - name: Check out M02 Integrations
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ fromJSON(steps.dependencies.outputs.json).integrations.repository }}
+          ref: ${{ fromJSON(steps.dependencies.outputs.json).integrations.ref }}
+          path: integrations
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.0'
+          cache-dependency-path: |
+            infra/go.sum
+            core/go.sum
+            storage/go.sum
+            integrations/go.sum
+      - name: Install verified Typst 0.15.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/typst.tar.xz"
+          curl --fail --location --retry 3 https://github.com/typst/typst/releases/download/v0.15.1/typst-x86_64-unknown-linux-musl.tar.xz --output "$archive"
+          echo "a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c  $archive" | sha256sum --check
+          tar -xf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/typst-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+      - name: Verify complete E03 stand
+        run: ./scripts/ci-check.ps1 -DockerContext default -TypstBinary "$env:RUNNER_TEMP/typst-x86_64-unknown-linux-musl/typst" -VerifyPins
+      - name: Upload sanitized verification evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e03-evidence
+          path: infra/.cache/ci-evidence.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Stop ephemeral stand
+        if: always()
+        run: docker --context default compose --profile dev down --volumes --remove-orphans
