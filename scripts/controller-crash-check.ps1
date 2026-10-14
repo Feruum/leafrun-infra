@@ -85,8 +85,8 @@ function Assert-RendererPolicy {
 
 function Invoke-TypstCanary {
     $typstCommand = Get-Command typst -ErrorAction Stop
-    $dir = Join-Path $env:TEMP ('leafrun-e04-canary-' + [guid]::NewGuid().ToString('N'))
-    $tempRoot = [IO.Path]::GetFullPath($env:TEMP)
+    $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+    $dir = Join-Path $tempRoot ('leafrun-e04-canary-' + [guid]::NewGuid().ToString('N'))
     $resolvedDir = [IO.Path]::GetFullPath($dir)
     $separator = [IO.Path]::DirectorySeparatorChar
     $tempRootPrefix = $tempRoot.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) + $separator
@@ -144,7 +144,6 @@ function Invoke-TypstCanary {
             Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
             $process.WaitForExit()
         }
-        $tempRoot = [IO.Path]::GetFullPath($env:TEMP)
         $resolvedDir = [IO.Path]::GetFullPath($dir)
         $tempRootPrefix = $tempRoot.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
         if (-not $resolvedDir.StartsWith($tempRootPrefix, $comparison) -or
