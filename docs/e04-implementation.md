@@ -122,4 +122,7 @@ Full leafrun.json/releases/profiles/DAG/Batch/callback/cache remain later scope.
   succeeds and its PDF downloads while the outbox remains pending; broker
   recovery delivers the event without rerender. Real service ACL/anonymous
   denial checks and all six repositories' Linux race/vet/build passed.
-- [ ] Five linked draft PRs, pinned CI and Linear delivery metadata.
+- [x] Five linked draft PRs, exact published dependency pins and Linear delivery
+  metadata. LEA-25–32 remain In Progress pending separate acceptance; LEA-36/37
+  retain their E05 scope with an explicit E04 subset note. Final hosted Infra
+  qualification is linked from the PR after the clean pinned run finishes.
