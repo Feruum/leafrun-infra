@@ -21,6 +21,11 @@ replace github.com/leafrun/leafrun-integrations v0.1.0 => /work/integrations
 replace github.com/leafrun/leafrun-platform v0.1.0 => /work/platform
 WORK
 export GOWORK=/tmp/e04.work
+# Host checkouts belong to the runner UID while this verifier runs as root.
+# Nested Go builds also inspect Git, so trust only these fixed workspace roots.
+for source in core contracts storage generation platform infra integrations; do
+  git config --global --add safe.directory "/work/$source"
+done
 for repo in ${LEAFRUN_E03_CHECK_REPOS:-core contracts storage generation platform infra}; do
   case "$repo" in core|contracts|storage|generation|platform|infra) ;; *) echo 'Invalid repository' >&2; exit 1;; esac
   echo "Verifying $repo"
