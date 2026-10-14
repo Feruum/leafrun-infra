@@ -94,7 +94,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !decode(w, r, &in) {
 			return
 		}
-		respond(w, v.AccessDecision{Allowed: !s.state.Deny && in.Scope == s.state.Scope && in.Principal.Subject == "demo" && in.Principal.Domain == "core"})
+		principalAllowed := in.Principal == (v.Principal{Subject: "demo", Domain: "core"}) || in.Principal == (v.Principal{Subject: "leafrun-generation", Domain: "service"})
+		respond(w, v.AccessDecision{Allowed: !s.state.Deny && in.Scope == s.state.Scope && principalAllowed})
 	case "/internal/v1/checks/publishable":
 		var in v.PublishabilityCheck
 		if !decode(w, r, &in) {

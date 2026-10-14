@@ -3,7 +3,7 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'workspace.ps1')
 $contextRoot=[IO.Path]::GetFullPath((Join-Path $infraRoot '.cache/context'))
 [IO.Directory]::CreateDirectory($contextRoot)|Out-Null
-foreach($repo in @('core','contracts','storage','integrations','infra')){
+foreach($repo in @('core','contracts','storage','generation','platform','integrations','infra')){
  $source=$paths[$repo]
  $safe='safe.directory='+$source.Replace('\','/')
  $files=git -c $safe -C $source ls-files
@@ -13,7 +13,7 @@ foreach($repo in @('core','contracts','storage','integrations','infra')){
  if(Test-Path -LiteralPath $target){Remove-Item -LiteralPath $target -Recurse -Force}
  [IO.Directory]::CreateDirectory($target)|Out-Null
  foreach($file in $files){
-  if($file -match '(^|/)(\.env|\.cache|\.git)(/|$)'){throw 'Private path in tracked source'}
+  if($file -match '(^|/)(\.env(?:\.[^/]*)?|\.cache|\.git|\.aws|\.ssh|\.codex|\.agents)(/|$)'){throw 'Private path in tracked source'}
   $destination=[IO.Path]::GetFullPath((Join-Path $target $file))
   if(-not $destination.StartsWith($target+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){throw 'Tracked path escapes context'}
   [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destination))|Out-Null

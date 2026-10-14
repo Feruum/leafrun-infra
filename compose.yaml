@@ -1,12 +1,42 @@
-name: leafrun-e03
+name: leafrun-e04
 services:
+  renderer-image:
+    profiles: [build]
+    image: leafrun-e04-renderer:source
+    build:
+      context: ./.cache/context/infra
+      dockerfile: Dockerfile.generation
+      target: renderer
+      additional_contexts:
+        contracts: ./.cache/context/contracts
+        core: ./.cache/context/core
+        platform: ./.cache/context/platform
+        integrations: ./.cache/context/integrations
+        generation: ./.cache/context/generation
+  nats:
+    profiles: [dev]
+    image: nats:2.15.1-alpine@sha256:2ae57dfba3063d5e25fecb75256118c0882a1a2d2cf7d0fba17a7c701df956f6
+    command: ["--config", "/stand/nats.json"]
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    ports: ["127.0.0.1:54222:4222", "127.0.0.1:58222:8222"]
+    volumes: [jetstream-data:/data, "./.cache/nats.json:/stand/nats.json:ro"]
+    healthcheck:
+      test: [CMD-SHELL, "wget -q -O - http://127.0.0.1:8222/healthz >/dev/null"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
   postgres:
+    profiles: [dev]
     image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?run scripts/init-env.ps1}
       STORAGE_DB_PASSWORD: ${STORAGE_DB_PASSWORD:?}
       TEMPORAL_DB_PASSWORD: ${TEMPORAL_DB_PASSWORD:?}
-    ports: ["127.0.0.1:58432:5432"]
+      GENERATION_DB_PASSWORD: ${GENERATION_DB_PASSWORD:?}
+      CONSUMER_DB_PASSWORD: ${CONSUMER_DB_PASSWORD:?}
+    ports: ["127.0.0.1:58434:5432"]
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/init.sh:/docker-entrypoint-initdb.d/10-domains.sh:ro
@@ -17,14 +47,16 @@ services:
       retries: 30
     restart: unless-stopped
   seaweed:
+    profiles: [dev]
     image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
     command: [mini, "-dir=/data", "-ip=seaweed", "-ip.bind=0.0.0.0", "-master.telemetry=false", "-admin.ui=false", "-webdav=false", "-s3.port.iceberg=0", "-s3.port.lance=0", "-s3.allowDeleteBucketNotEmpty=false", "-s3.config=/stand/s3.json"]
     environment:
-      S3_BUCKET: leafrun-storage,leafrun-storage-test
-    ports: ["127.0.0.1:58333:8333"]
+      S3_BUCKET: leafrun-storage,leafrun-storage-test,leafrun-storage-regression
+    ports: ["127.0.0.1:58343:8333"]
     volumes: [seaweed-data:/data, "./.cache/s3.json:/stand/s3.json:ro"]
     restart: unless-stopped
   temporal-schema:
+    profiles: [dev]
     image: temporalio/admin-tools:1.32.1@sha256:9ef0dc5b063bf4ffd5c1512de72e0e73e225bd2c7006a18ce69bd592a8862a83
     depends_on:
       postgres: {condition: service_healthy}
@@ -37,6 +69,7 @@ services:
     entrypoint: [sh, /stand/setup-temporal.sh]
     volumes: ["./temporal/setup.sh:/stand/setup-temporal.sh:ro"]
   temporal:
+    profiles: [dev]
     image: temporalio/server:1.32.1@sha256:acecbab5b0b8ae9cf4012b508866ca97feda3709577bf157b537239f40029049
     depends_on:
       temporal-schema: {condition: service_completed_successfully}
@@ -44,12 +77,13 @@ services:
       SQL_PASSWORD: ${TEMPORAL_DB_PASSWORD:?}
       TEMPORAL_ALLOW_NO_AUTH: "true"
     entrypoint: [sh, /stand/start.sh]
-    ports: ["127.0.0.1:57233:7233"]
+    ports: ["127.0.0.1:57243:7233"]
     volumes:
       - ./temporal/start.sh:/stand/start.sh:ro
       - ./temporal/config.template.yaml:/stand/config.template.yaml:ro
     restart: unless-stopped
   temporal-namespace:
+    profiles: [dev]
     image: temporalio/admin-tools:1.32.1@sha256:9ef0dc5b063bf4ffd5c1512de72e0e73e225bd2c7006a18ce69bd592a8862a83
     depends_on: [temporal]
     entrypoint: [sh, /stand/namespace.sh]
@@ -64,13 +98,15 @@ services:
         contracts: ./.cache/context/contracts
         core: ./.cache/context/core
         integrations: ./.cache/context/integrations
+        platform: ./.cache/context/platform
     environment:
       LEAFRUN_DEV_FIXTURE: "true"
       LEAFRUN_OWNER_TOKEN: ${OWNER_TOKEN:?}
       LEAFRUN_FIXTURE_ADMIN_TOKEN: ${FIXTURE_ADMIN_TOKEN:?}
-    ports: ["127.0.0.1:58082:8082"]
+    ports: ["127.0.0.1:58092:8082"]
   storage-migrate:
     profiles: [dev]
+    image: &storage-image leafrun-e04-storage:source
     build: &storage-build
       context: ./.cache/context/infra
       dockerfile: Dockerfile.storage
@@ -85,9 +121,9 @@ services:
       AWS_REGION: us-east-1
       AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
       AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
-      LEAFRUN_STORAGE_OWNER_URL: http://owner-fixture:8082
+      LEAFRUN_STORAGE_OWNER_URL: http://owner-router:8082
       LEAFRUN_STORAGE_OWNER_TOKEN: ${OWNER_TOKEN}
-      LEAFRUN_STORAGE_SERVICE_CREDENTIALS: '[{"token":"${STORAGE_TOKEN}","subject":"demo","domain":"core"}]'
+      LEAFRUN_STORAGE_SERVICE_CREDENTIALS: '[{"token":"${STORAGE_TOKEN}","subject":"demo","domain":"core"},{"token":"${GENERATION_STORAGE_TOKEN}","subject":"leafrun-generation","domain":"service"}]'
       LEAFRUN_STORAGE_TEMPORAL_ADDRESS: temporal:7233
       LEAFRUN_STORAGE_SWEEP_INTERVAL: ${STORAGE_SWEEP_INTERVAL:-5m}
     command: [migrate]
@@ -95,26 +131,269 @@ services:
       postgres: {condition: service_healthy}
   storage-api:
     profiles: [dev]
+    image: *storage-image
     build: *storage-build
     environment: *storage-env
     command: [api]
     depends_on:
       storage-migrate: {condition: service_completed_successfully}
-      owner-fixture: {condition: service_started}
+      owner-router: {condition: service_started}
       seaweed: {condition: service_started}
-    ports: ["127.0.0.1:58081:8081"]
+    ports: ["127.0.0.1:58091:8081"]
     restart: unless-stopped
   storage-worker:
     profiles: [dev]
+    image: *storage-image
     build: *storage-build
     environment: *storage-env
     command: [worker]
     depends_on:
       storage-migrate: {condition: service_completed_successfully}
       temporal-namespace: {condition: service_completed_successfully}
-      owner-fixture: {condition: service_started}
+      owner-router: {condition: service_started}
+      seaweed: {condition: service_started}
+    restart: unless-stopped
+  owner-router:
+    profiles: [dev]
+    build:
+      context: ./.cache/context/infra
+      dockerfile: Dockerfile
+      target: owner-router
+      additional_contexts:
+        contracts: ./.cache/context/contracts
+        core: ./.cache/context/core
+        integrations: ./.cache/context/integrations
+        platform: ./.cache/context/platform
+    environment:
+      LEAFRUN_DEV_FIXTURE: "true"
+      LEAFRUN_OWNER_TOKEN: ${OWNER_TOKEN}
+      LEAFRUN_ACCESS_URL: http://owner-fixture:8082
+      LEAFRUN_ACCESS_TOKEN: ${OWNER_TOKEN}
+      LEAFRUN_GENERATION_URL: http://generation-api:8080
+      LEAFRUN_GENERATION_OWNER_TOKEN: ${GENERATION_OWNER_TOKEN}
+    depends_on: [owner-fixture]
+  generation-migrate:
+    profiles: [dev]
+    image: &generation-image leafrun-e04-generation:source
+    build: &generation-build
+      context: ./.cache/context/infra
+      dockerfile: Dockerfile.generation
+      target: service
+      additional_contexts:
+        contracts: ./.cache/context/contracts
+        core: ./.cache/context/core
+        platform: ./.cache/context/platform
+        integrations: ./.cache/context/integrations
+        generation: ./.cache/context/generation
+    environment:
+      GENERATION_DATABASE_URL: postgres://generation:${GENERATION_DB_PASSWORD}@postgres:5432/generation?sslmode=disable
+    command: [migrate]
+    depends_on:
+      postgres: {condition: service_healthy}
+  generation-api:
+    profiles: [dev]
+    image: *generation-image
+    build: *generation-build
+    environment: &generation-env
+      GENERATION_DATABASE_URL: postgres://generation:${GENERATION_DB_PASSWORD}@postgres:5432/generation?sslmode=disable
+      GENERATION_STORAGE_URL: http://storage-api:8081
+      GENERATION_STORAGE_TOKEN: ${GENERATION_STORAGE_TOKEN}
+      GENERATION_OWNER_URL: http://owner-fixture:8082
+      GENERATION_OWNER_TOKEN: ${OWNER_TOKEN}
+      GENERATION_OWNER_CALLBACK_TOKEN: ${GENERATION_OWNER_TOKEN}
+      GENERATION_CREDENTIALS_JSON: '{"${GENERATION_USER_TOKEN}":{"subject":"demo","domain":"core"}}'
+      GENERATION_ENGINE_VERSION: 0.15.1
+      GENERATION_HTTP_ADDR: :8080
+      GENERATION_TEMPORAL_ADDRESS: temporal:7233
+      GENERATION_TEMPORAL_NAMESPACE: leafrun-generation
+    command: [api]
+    depends_on:
+      generation-migrate: {condition: service_completed_successfully}
+    ports: ["127.0.0.1:58090:8080"]
+    restart: unless-stopped
+  generation-workflow:
+    profiles: [dev]
+    image: *generation-image
+    build: *generation-build
+    environment:
+      GENERATION_TEMPORAL_ADDRESS: temporal:7233
+      GENERATION_TEMPORAL_NAMESPACE: leafrun-generation
+    command: [workflow]
+    depends_on:
+      temporal-namespace: {condition: service_completed_successfully}
+    restart: unless-stopped
+  generation-dispatcher:
+    profiles: [dev]
+    image: *generation-image
+    build: *generation-build
+    environment:
+      GENERATION_DATABASE_URL: postgres://generation:${GENERATION_DB_PASSWORD}@postgres:5432/generation?sslmode=disable
+      GENERATION_TEMPORAL_ADDRESS: temporal:7233
+      GENERATION_TEMPORAL_NAMESPACE: leafrun-generation
+    command: [dispatcher]
+    depends_on:
+      generation-migrate: {condition: service_completed_successfully}
+      temporal-namespace: {condition: service_completed_successfully}
+    restart: unless-stopped
+  generation-reconciler:
+    profiles: [dev]
+    image: *generation-image
+    build: *generation-build
+    environment: *generation-env
+    command: [reconcile]
+    depends_on:
+      generation-migrate: {condition: service_completed_successfully}
+      storage-api: {condition: service_started}
+    restart: unless-stopped
+  generation-controller:
+    profiles: [dev]
+    image: *generation-image
+    build: *generation-build
+    # The trusted controller talks to Docker; child renderers receive no socket,
+    # bind mount, service credential or network interface.
+    user: "0:0"
+    environment:
+      <<: *generation-env
+      GENERATION_RENDERER_IMAGE: ${GENERATION_RENDERER_IMAGE:-}
+      GENERATION_STAGING_ROOT: /staging
+      DOCKER_HOST: unix:///var/run/docker.sock
+    command: [controller]
+    volumes: [generation-staging:/staging, "/var/run/docker.sock:/var/run/docker.sock"]
+    depends_on:
+      generation-migrate: {condition: service_completed_successfully}
+      temporal-namespace: {condition: service_completed_successfully}
+      storage-api: {condition: service_started}
+    restart: unless-stopped
+  generation-janitor:
+    profiles: [dev]
+    image: *generation-image
+    build: *generation-build
+    user: "0:0"
+    environment:
+      <<: *generation-env
+      GENERATION_RENDERER_IMAGE: ${GENERATION_RENDERER_IMAGE:-}
+      GENERATION_STAGING_ROOT: /staging
+      DOCKER_HOST: unix:///var/run/docker.sock
+    command: [janitor]
+    volumes: [generation-staging:/staging, "/var/run/docker.sock:/var/run/docker.sock"]
+    depends_on:
+      generation-migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+  generation-event-relay:
+    profiles: [dev]
+    image: *generation-image
+    build: *generation-build
+    environment:
+      GENERATION_DATABASE_URL: postgres://generation:${GENERATION_DB_PASSWORD}@postgres:5432/generation?sslmode=disable
+      GENERATION_NATS_ADDRESS: nats://nats:4222
+      GENERATION_NATS_USER: generation
+      GENERATION_NATS_PASSWORD: ${NATS_GENERATION_PASSWORD}
+    command: [event-relay]
+    depends_on:
+      generation-migrate: {condition: service_completed_successfully}
+      nats: {condition: service_healthy}
+      jetstream-bootstrap: {condition: service_completed_successfully}
+    restart: unless-stopped
+  jetstream-bootstrap:
+    profiles: [dev]
+    build:
+      context: ./.cache/context/infra
+      dockerfile: Dockerfile
+      target: jetstream-bootstrap
+      additional_contexts:
+        contracts: ./.cache/context/contracts
+        core: ./.cache/context/core
+        integrations: ./.cache/context/integrations
+        platform: ./.cache/context/platform
+    environment:
+      LEAFRUN_DEV_FIXTURE: "true"
+      LEAFRUN_NATS_ADDRESS: nats://nats:4222
+      LEAFRUN_NATS_USER: bootstrap
+      LEAFRUN_NATS_PASSWORD: ${NATS_ADMIN_PASSWORD}
+    depends_on:
+      nats: {condition: service_healthy}
+  dev-consumer:
+    profiles: [dev]
+    build:
+      context: ./.cache/context/infra
+      dockerfile: Dockerfile
+      target: dev-consumer
+      additional_contexts:
+        contracts: ./.cache/context/contracts
+        core: ./.cache/context/core
+        integrations: ./.cache/context/integrations
+        platform: ./.cache/context/platform
+    environment:
+      LEAFRUN_DEV_FIXTURE: "true"
+      LEAFRUN_CONSUMER_DATABASE_URL: postgres://dev_consumer:${CONSUMER_DB_PASSWORD}@postgres:5432/dev_consumer?sslmode=disable
+      LEAFRUN_NATS_ADDRESS: nats://nats:4222
+      LEAFRUN_NATS_USER: consumer
+      LEAFRUN_NATS_PASSWORD: ${NATS_CONSUMER_PASSWORD}
+      LEAFRUN_GENERATION_URL: http://generation-api:8080
+      LEAFRUN_GENERATION_TOKEN: ${GENERATION_USER_TOKEN}
+    depends_on:
+      postgres: {condition: service_healthy}
+      jetstream-bootstrap: {condition: service_completed_successfully}
+      generation-api: {condition: service_started}
+    restart: unless-stopped
+  e03-owner-fixture:
+    profiles: [e03-regression]
+    build:
+      context: ./.cache/context/infra
+      dockerfile: Dockerfile
+      target: fixture
+      additional_contexts:
+        contracts: ./.cache/context/contracts
+        core: ./.cache/context/core
+        integrations: ./.cache/context/integrations
+        platform: ./.cache/context/platform
+    environment:
+      LEAFRUN_DEV_FIXTURE: "true"
+      LEAFRUN_OWNER_TOKEN: ${OWNER_TOKEN}
+      LEAFRUN_FIXTURE_ADMIN_TOKEN: ${FIXTURE_ADMIN_TOKEN}
+    ports: ["127.0.0.1:58095:8082"]
+  e03-storage-migrate:
+    profiles: [e03-regression]
+    image: *storage-image
+    build: *storage-build
+    environment: &e03-storage-env
+      <<: *storage-env
+      LEAFRUN_STORAGE_DATABASE_URL: postgres://storage:${STORAGE_DB_PASSWORD}@postgres:5432/storage_regression?sslmode=disable
+      LEAFRUN_STORAGE_S3_BUCKET: leafrun-storage-regression
+      AWS_ACCESS_KEY_ID: ${S3_REGRESSION_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_REGRESSION_SECRET_KEY}
+      LEAFRUN_STORAGE_OWNER_URL: http://e03-owner-fixture:8082
+      LEAFRUN_STORAGE_SERVICE_CREDENTIALS: '[{"token":"${STORAGE_TOKEN}","subject":"demo","domain":"core"}]'
+      LEAFRUN_STORAGE_TEMPORAL_NAMESPACE: e03-regression
+    command: [migrate]
+    depends_on:
+      postgres: {condition: service_healthy}
+  e03-storage-api:
+    profiles: [e03-regression]
+    image: *storage-image
+    build: *storage-build
+    environment: *e03-storage-env
+    command: [api]
+    depends_on:
+      e03-storage-migrate: {condition: service_completed_successfully}
+      e03-owner-fixture: {condition: service_started}
+      seaweed: {condition: service_started}
+    ports: ["127.0.0.1:58094:8081"]
+    restart: unless-stopped
+  e03-storage-worker:
+    profiles: [e03-regression]
+    image: *storage-image
+    build: *storage-build
+    environment: *e03-storage-env
+    command: [worker]
+    depends_on:
+      e03-storage-migrate: {condition: service_completed_successfully}
+      temporal-namespace: {condition: service_completed_successfully}
+      e03-owner-fixture: {condition: service_started}
       seaweed: {condition: service_started}
     restart: unless-stopped
 volumes:
+  generation-staging:
+  jetstream-data:
   postgres-data:
   seaweed-data:

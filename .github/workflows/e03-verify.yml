@@ -1,4 +1,4 @@
-name: E03 verification
+name: E04 verification
 on:
   push:
     branches: [main, develop, 'codex/**']
@@ -7,12 +7,12 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: e03-${{ github.workflow }}-${{ github.ref }}
+  group: e04-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   stand:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: infra
@@ -57,6 +57,20 @@ jobs:
           ref: ${{ fromJSON(steps.dependencies.outputs.json).integrations.ref }}
           path: integrations
           persist-credentials: false
+      - name: Check out Generation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ fromJSON(steps.dependencies.outputs.json).generation.repository }}
+          ref: ${{ fromJSON(steps.dependencies.outputs.json).generation.ref }}
+          path: generation
+          persist-credentials: false
+      - name: Check out Platform
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ fromJSON(steps.dependencies.outputs.json).platform.repository }}
+          ref: ${{ fromJSON(steps.dependencies.outputs.json).platform.ref }}
+          path: platform
+          persist-credentials: false
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -65,6 +79,8 @@ jobs:
             infra/go.sum
             core/go.sum
             storage/go.sum
+            generation/go.sum
+            platform/go.sum
             integrations/go.sum
       - name: Install verified Typst 0.15.1
         shell: bash
@@ -75,16 +91,16 @@ jobs:
           echo "a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c  $archive" | sha256sum --check
           tar -xf "$archive" -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/typst-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
-      - name: Verify complete E03 stand
+      - name: Verify complete E04 stand and E03 regressions
         run: ./scripts/ci-check.ps1 -DockerContext default -TypstBinary "$env:RUNNER_TEMP/typst-x86_64-unknown-linux-musl/typst" -VerifyPins
       - name: Upload sanitized verification evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e03-evidence
+          name: e04-evidence
           path: infra/.cache/ci-evidence.json
           if-no-files-found: warn
           retention-days: 7
       - name: Stop ephemeral stand
         if: always()
-        run: docker --context default compose --profile dev down --volumes --remove-orphans
+        run: docker --context default compose --profile dev --profile e03-regression down --volumes --remove-orphans

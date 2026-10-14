@@ -8,6 +8,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.3
 	github.com/leafrun/leafrun-contracts v0.1.0
 	github.com/leafrun/leafrun-document-core v0.1.0
+	github.com/leafrun/leafrun-platform v0.1.0
+	github.com/nats-io/nats.go v1.54.0
+	github.com/jackc/pgx/v5 v5.11.0
 )
 
 require (

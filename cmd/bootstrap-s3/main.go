@@ -31,7 +31,7 @@ func main() {
 	if bucket != "leafrun-storage" && bucket != "leafrun-storage-test" {
 		log.Fatal("dedicated development bucket required")
 	}
-	for _, bucket = range []string{"leafrun-storage", "leafrun-storage-test"} {
+	for _, bucket = range []string{"leafrun-storage", "leafrun-storage-test", "leafrun-storage-regression"} {
 		for {
 			if _, err = client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: &bucket}); err == nil {
 				break

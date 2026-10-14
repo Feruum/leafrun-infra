@@ -8,7 +8,7 @@ try {
  $evidenceFile=Join-Path $infraRoot '.cache/ci-evidence.json'
  [IO.Directory]::CreateDirectory((Split-Path $evidenceFile))|Out-Null
  $pins=Get-Content -Raw -LiteralPath 'ci/dependencies.json'|ConvertFrom-Json
- foreach($repo in @('infra','core','contracts','storage','integrations')){
+ foreach($repo in @('infra','core','contracts','storage','generation','platform','integrations')){
   $source=Join-Path $taskRoot $repo
   if($repo -eq 'integrations' -and -not(Test-Path -LiteralPath (Join-Path $source 'go.mod'))){$source=[IO.Path]::GetFullPath((Join-Path $taskRoot '../integrations'))}
   if($repo -eq 'integrations' -and $env:LEAFRUN_INTEGRATIONS_DIR){$source=[IO.Path]::GetFullPath($env:LEAFRUN_INTEGRATIONS_DIR)}
@@ -44,6 +44,10 @@ try {
  $evidence.checks.hostBuild=$true
  & ./scripts/restart-check.ps1 -DockerContext $DockerContext
  $evidence.checks.restartPersistence=$true
+ & ./scripts/controller-crash-check.ps1 -DockerContext $DockerContext
+ $evidence.checks.controllerCrashIndependentTimeout=$true
+ & ./scripts/broker-outage-check.ps1 -DockerContext $DockerContext
+ $evidence.checks.brokerOutageDurableDelivery=$true
  & ./scripts/linux-checks.ps1 -DockerContext $DockerContext -TypstBinary $TypstBinary
  $evidence.checks.allRepositoryLinuxRaceVetBuild=$true
  $evidence.passed=$true
