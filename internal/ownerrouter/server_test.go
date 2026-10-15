@@ -31,7 +31,11 @@ func TestRoutesAccessToExplicitFixtureAndOwnershipToGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, path := range []string{"access", "publishable", "pin-owner"} {
-		req := httptest.NewRequest("POST", "/internal/v1/checks/"+path, bytes.NewBufferString(`{}`))
+		body := `{}`
+		if path == "pin-owner" {
+			body = `{"holderId":"leafrun-generation","holderDomain":"service"}`
+		}
+		req := httptest.NewRequest("POST", "/internal/v1/checks/"+path, bytes.NewBufferString(body))
 		req.Header.Set("Authorization", "Bearer storage")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)

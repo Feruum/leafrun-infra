@@ -3,10 +3,12 @@ param([string]$DockerContext = 'desktop-linux')
 $ErrorActionPreference = 'Stop'
 $infraRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $receiptPath = Join-Path $infraRoot '.cache/e04-broker-outage-receipt.json'
+$projectsReceiptPath = Join-Path $infraRoot '.cache/e05-broker-outage-receipt.json'
 $natsContainerID = $null
 $natsWasRunning = $false
 $relayContainerID = $null
 $consumerContainerID = $null
+$projectsRelayContainerID = $null
 Push-Location $infraRoot
 
 function Invoke-Docker {
@@ -67,7 +69,8 @@ function Wait-NatsHealthy {
 function Wait-RelayAndConsumerRunning {
     $expectedServices = @(
         @{ Service = 'generation-event-relay'; ID = $relayContainerID },
-        @{ Service = 'dev-consumer'; ID = $consumerContainerID }
+        @{ Service = 'dev-consumer'; ID = $consumerContainerID },
+        @{ Service = 'projects-event-relay'; ID = $projectsRelayContainerID }
     )
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(60)
     do {
@@ -97,7 +100,7 @@ function Wait-RelayAndConsumerRunning {
 function Invoke-BrokerOutageGoTest {
     param([Parameter(Mandatory)][ValidateSet('submit', 'verify')][string]$Stage)
     $env:LEAFRUN_E04_BROKER_STAGE = $Stage
-    & go test -count=1 -timeout=120s -v -run '^TestLiveBrokerOutageRecovery$' ./e04
+    & go test -count=1 -timeout=180s -v -run '^(TestLiveBrokerOutageRecovery|TestE05BrokerOutageRecovery)$' ./e04
     if ($LASTEXITCODE -ne 0) {
         throw "E04 broker-outage $Stage phase failed with exit code $LASTEXITCODE"
     }
@@ -110,13 +113,15 @@ try {
     }
     $env:LEAFRUN_E04_BROKER_RECEIPT_FILE = $receiptPath
     $env:LEAFRUN_E04_BROKER_GENERATION_DATABASE_URL = "postgres://generation:$($cfg.GENERATION_DB_PASSWORD)@127.0.0.1:58434/generation?sslmode=disable"
+    $env:LEAFRUN_E05_INTEGRATION = '1'
+    $env:LEAFRUN_E05_BROKER_RECEIPT_FILE = $projectsReceiptPath
 
     $osType = Invoke-Docker -Arguments @('info', '--format', '{{.OSType}}')
     if (($osType -join '').Trim() -ne 'linux') {
         throw "Docker context $DockerContext is not using a Linux engine"
     }
 
-    $readyAddresses = @(($env:LEAFRUN_E04_GENERATION_URL + '/readyz'), ($env:LEAFRUN_E04_STORAGE_URL + '/readyz'))
+    $readyAddresses = @(($env:LEAFRUN_E04_GENERATION_URL + '/readyz'), ($env:LEAFRUN_E04_STORAGE_URL + '/readyz'), ($env:LEAFRUN_E05_PROJECTS_URL + '/readyz'))
     foreach ($address in $readyAddresses) {
         $response = Invoke-WebRequest -Uri $address -TimeoutSec 3 -SkipHttpErrorCheck
         if ($response.StatusCode -ne 200 -and $response.StatusCode -ne 204) {
@@ -134,9 +139,11 @@ try {
 
     $relayContainerID = Get-RunningComposeContainerID -Service 'generation-event-relay'
     $consumerContainerID = Get-RunningComposeContainerID -Service 'dev-consumer'
+    $projectsRelayContainerID = Get-RunningComposeContainerID -Service 'projects-event-relay'
     foreach ($pair in @(
         @{ Service = 'generation-event-relay'; ID = $relayContainerID },
-        @{ Service = 'dev-consumer'; ID = $consumerContainerID }
+        @{ Service = 'dev-consumer'; ID = $consumerContainerID },
+        @{ Service = 'projects-event-relay'; ID = $projectsRelayContainerID }
     )) {
         $inspection = Get-ContainerInspection -ID $pair.ID
         Assert-ComposeContainer -ID $pair.ID -Service $pair.Service -Inspection $inspection
@@ -161,6 +168,9 @@ try {
     if (-not (Test-Path -LiteralPath $receiptPath)) {
         throw 'The submit phase did not write its public artifact receipt'
     }
+    if (-not (Test-Path -LiteralPath $projectsReceiptPath)) {
+        throw 'The submit phase did not write its Projects event receipt'
+    }
     Write-Output 'Restarting the same NATS container and waiting for JetStream health.'
     Invoke-Docker -Arguments @('start', $natsContainerID) | Out-Null
     Wait-NatsHealthy -ID $natsContainerID
@@ -168,6 +178,7 @@ try {
 
     Invoke-BrokerOutageGoTest -Stage 'verify'
     Write-Output 'The same successful artifact was retained, its single render attempt remained finished, and the terminal event reached the independent consumer.'
+    Write-Output 'Projects release visibility stayed unchanged and the same four lifecycle events reached JetStream.'
 } finally {
     try {
         if ($natsContainerID -and $natsWasRunning) {
@@ -180,7 +191,7 @@ try {
             Write-Output 'The original NATS container is restored and healthy.'
         }
     } finally {
-        Remove-Item Env:LEAFRUN_E04_BROKER_STAGE, Env:LEAFRUN_E04_BROKER_RECEIPT_FILE, Env:LEAFRUN_E04_BROKER_GENERATION_DATABASE_URL -ErrorAction SilentlyContinue
+        Remove-Item Env:LEAFRUN_E04_BROKER_STAGE, Env:LEAFRUN_E04_BROKER_RECEIPT_FILE, Env:LEAFRUN_E04_BROKER_GENERATION_DATABASE_URL, Env:LEAFRUN_E05_BROKER_RECEIPT_FILE -ErrorAction SilentlyContinue
         Pop-Location
     }
 }

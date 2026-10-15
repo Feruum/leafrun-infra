@@ -1,19 +1,19 @@
 {
   "core": {
     "repository": "Feruum/leafrun-document-core",
-    "ref": "eb73180c1dd1fb5cb15b2e83097f5ca12764763c"
+    "ref": "7d3d18019d05e8baee35bc334b3cb87b9bfaefbd"
   },
   "contracts": {
     "repository": "Feruum/leafrun-contracts",
-    "ref": "8df929c5b9f6a8537bb7fab9f86df6e5d0007dac"
+    "ref": "5fc1570d770ab680a639bc5a93ff0ba0946b4d9a"
   },
   "storage": {
     "repository": "Feruum/leafrun-storage",
-    "ref": "866d64d00eab916056f874a0736be78dca07d1d0"
+    "ref": "ff45d0433fd807e40259a74fccb735d31906061e"
   },
   "generation": {
     "repository": "Feruum/Leafrun",
-    "ref": "b0795ee7eaf4a7da218d026f7ee2fad4fba4ecbf"
+    "ref": "497717a65106fa0491775f9a8950b4ed33bf4f76"
   },
   "platform": {
     "repository": "Feruum/leafrun-platform",
@@ -22,5 +22,9 @@
   "integrations": {
     "repository": "Feruum/leafrun-integrations",
     "ref": "a4414f5fe3f12815d305d14edba5396a97e5738b"
+  },
+  "projects": {
+    "repository": "Feruum/leafrun-projects",
+    "ref": "d9c63dd6331f38b0b2d889273682362f6893e07d"
   }
 }

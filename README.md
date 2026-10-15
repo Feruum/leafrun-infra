@@ -1,8 +1,8 @@
-# Leafrun Infra — E04/M04 internal stand
+# Leafrun Infra — E05/M05 internal stand
 
-The stand runs Generation, Storage, PostgreSQL 17.6, SeaweedFS 4.48, Temporal 1.32.1 and NATS 2.15.1 with JetStream. Images are pinned by digest. Generation's API, workflow worker, activity controller, dispatcher, reconciler, janitor and event relay run as independent processes. Storage has its own API and worker; an independent development consumer projects Generation events into its own DB.
+The stand runs Projects, Generation, Storage, PostgreSQL 17.6, SeaweedFS 4.48, Temporal 1.32.1 and NATS 2.15.1 with JetStream. Images are pinned by digest. Generation's API, workflow worker, activity controller, dispatcher, reconciler, janitor and event relay run as independent processes. Projects has separate API, pin reconciler and transactional event relay processes. Storage has its own API and worker; an independent development consumer projects Generation events into its own DB.
 
-All host ports bind to `127.0.0.1`; the stand remains internal until E06. Services require the explicit `dev` profile. Only Access is a development fixture: publication and pin-owner checks route to the real Generation owner API. Missing credentials, publication evidence or authoritative dependency responses fail closed. Fixtures require `LEAFRUN_DEV_FIXTURE=true` and separate credentials.
+All host ports bind to `127.0.0.1`; the stand remains internal until E06. Services require the explicit `dev` profile. Only Access is a development fixture: publication and pin-owner checks route to the real Generation and Projects owner APIs. Missing credentials, publication evidence or authoritative dependency responses fail closed. Fixtures require `LEAFRUN_DEV_FIXTURE=true` and separate credentials.
 
 ## Source layout and startup
 
@@ -10,11 +10,12 @@ Use Go 1.27.0, Docker Compose with named build contexts and PowerShell 7. During
 
 ```text
 workspace/
-  core/          leafrun-document-core E04 branch, including M02/E03
-  contracts/     leafrun-contracts E04 branch
+  core/          leafrun-document-core E05 branch, including M02/E03
+  contracts/     leafrun-contracts E05 branch
   platform/      leafrun-platform E04 branch
-  generation/    leafrun-generation E04 branch
-  storage/       leafrun-storage E03 branch
+  generation/    leafrun-generation E05 branch
+  storage/       leafrun-storage E05 resource-metadata branch
+  projects/      leafrun-projects E05 branch
   infra/         this repository
   integrations/  leafrun-integrations M02 commit a4414f5fe3f12815d305d14edba5396a97e5738b
 ```
@@ -27,14 +28,15 @@ cd infra
 docker --context desktop-linux compose --profile dev --profile e03-regression ps
 ```
 
-`init-env.ps1` generates ignored random credentials and preserves existing values. Storage, Generation, Temporal and the consumer own separate databases and roles; PUBLIC database CONNECT grants are revoked. Storage unit tests and E03 regression services have separate catalogs, buckets and Temporal namespaces. SeaweedFS uses private versioned buckets and distinct administrator/service/test identities. Startup probes exact-version reads/deletes and multipart support. Do not apply bucket lifecycle expiration to retained resources.
+`init-env.ps1` generates ignored random credentials and preserves existing values. Projects, Storage, Generation, Temporal and the consumer own separate databases and roles; PUBLIC database CONNECT grants are revoked. Storage unit tests and E03 regression services have separate catalogs, buckets and Temporal namespaces. SeaweedFS uses private versioned buckets and distinct administrator/service/test identities. Startup probes exact-version reads/deletes and multipart support. Do not apply bucket lifecycle expiration to retained resources.
 
 | Service | Host endpoint | Owned state |
 | --- | --- | --- |
-| PostgreSQL | `127.0.0.1:58434` | Storage, Generation, Temporal history/visibility, consumer and isolated test DBs |
+| PostgreSQL | `127.0.0.1:58434` | Projects, Storage, Generation, Temporal history/visibility, consumer and isolated test DBs |
 | SeaweedFS S3 | `127.0.0.1:58343` | Private versioned main/test/regression buckets |
 | Temporal | `127.0.0.1:57243` | Persistent history, separate Generation and E03 test namespaces |
 | NATS / monitor | `127.0.0.1:54222` / `58222` | Persistent JetStream, separate publisher/consumer/bootstrap ACLs |
+| Projects API | `127.0.0.1:58096` | Revisions, frozen releases, publication CAS, pins and outbox |
 | Generation API | `127.0.0.1:58090` | Jobs, leases, intents, candidates, bindings and outbox |
 | Storage API | `127.0.0.1:58091` | Storage catalog and versioned objects |
 | Dev Access fixture | `127.0.0.1:58092` | Explicit mutable access/outage evidence |
@@ -57,11 +59,27 @@ go build ./...
 ./scripts/linux-checks.ps1 -TypstBinary C:/tools/typst-x86_64-unknown-linux-musl/typst
 ```
 
-`ci-check.ps1 -TypstBinary <Linux executable>` runs startup, complete host tests, restart verification, controller-crash verification, broker-outage recovery and race/vet/build in all six repositories. `-VerifyPins` requires clean checkouts at the exact published dependency commits. `.github/workflows/e03-verify.yml` executes this E04 sequence on Ubuntu, retaining E03 regression coverage. Official actions and Typst downloads are pinned. Only sanitized source hashes/check outcomes are uploaded from `.cache/ci-evidence.json`; credentials remain in ignored env files. Use Compose `config --quiet` for validation because expanded config contains local secrets.
+`ci-check.ps1 -TypstBinary <Linux executable>` runs startup, complete host tests, restart verification, controller-crash verification, broker-outage recovery and race/vet/build in all seven repositories. `-VerifyPins` requires clean checkouts at the exact published dependency commits. `.github/workflows/e03-verify.yml` executes the E05 sequence on Ubuntu, retaining E03 regression coverage. Official actions and Typst downloads are pinned. Only sanitized source hashes/check outcomes are uploaded from `.cache/ci-evidence.json`; credentials remain in ignored env files. Use Compose `config --quiet` for validation because expanded config contains local secrets.
 
 The E04 HTTP harness checks durable admission, exact numeric parameter bytes, schema and compile failures, full captured-font transfer, independent derived snapshots, publication, download, idempotency, access revocation and dependency outage. A real independent inbox/effect consumer must observe terminal events. PostgreSQL/NATS tests exercise lost publish ACKs, redelivery, ordering, quarantine, explicit replay and permissions. Restart verification preserves the job receipt, PDF bytes, original expiry and consumer projection across DB/S3/Temporal/NATS and service restarts. The crash check kills the controller during CPU-bound Typst execution, verifies independent exit 124, then exercises janitor recovery without another render. These scenarios cover D03, D05 and D17.
 
 E03 scenarios retain D04, D10, D15, D18 and `soa/pin-gc-race`: captured JSON/SVG, empty directories, removed original fonts, atomic manifests, finalize replay, access/publishability, hard TTL, read/write leases, actual multipart/version inventory, orphan races and lost S3/DB acknowledgements. Tests never share the live catalog's inventory bucket.
+
+E05 checks technical publication without invoking Typst, frozen release forms,
+release and working target selection, missing-only defaults, uploaded SVG inputs,
+custom profiles and generation permission without source access. Unsupported
+bundle execution, invalid schema values and missing/foreign input files leave
+no admitted job. Withdrawal denies new jobs; exact replay and old release
+republishing preserve the original job and PDF expiry. D16 uses actual Temporal
+GC to prove that a release pin survives working-revision deletion and that final
+unpublished release deletion makes its snapshot collectible.
+
+Restart verification also preserves Projects release identity, prepared snapshot
+content and the original selection receipt. The broker-outage check proves that
+publication and withdrawal commit while NATS is stopped, then delivers their
+same ID-only events through the independent Projects outbox relay. Its NATS
+credential can publish only Projects subjects and cannot subscribe to events or
+administer streams. See [the E05 verification record](docs/e05-verification.md).
 
 ## Lifecycle and delivery
 
@@ -69,4 +87,4 @@ PDF expiry is fixed at 24 hours from the first Storage finalize. Pins, replays, 
 
 The fixture's independently authenticated `PUT /dev/v1/state` controls access denial and dependency outage for the demo scope/principal. Real Access, collaboration and callbacks remain later stages. Temporal's internal frontend is unauthenticated only on this explicitly internal development stand.
 
-Stop while preserving state with `docker --context desktop-linux compose --profile dev --profile e03-regression down`. Removing named volumes destroys development catalog/history and requires a separate deliberate action. Never commit `.env`, `.cache`, credentials or PDFs. E03/E04 draft delivery depends on E01/E02 acceptance; merges, releases and formal Linear closure remain separate. No project license has been selected yet.
+Stop while preserving state with `docker --context desktop-linux compose --profile dev --profile e03-regression down`. Removing named volumes destroys development catalog/history and requires a separate deliberate action. Never commit `.env`, `.cache`, credentials or PDFs. E03/E04/E05 draft delivery depends on E01/E02 acceptance; merges, releases and formal Linear closure remain separate. No project license has been selected yet.

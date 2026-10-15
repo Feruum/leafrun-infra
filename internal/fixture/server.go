@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	v "github.com/leafrun/leafrun-contracts/storage/v1"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -17,6 +18,16 @@ type State struct {
 	Unavailable bool                    `json:"unavailable"`
 	Published   map[string]string       `json:"published"` // artifact ID -> job ID
 	Pins        map[string]v.OwnerState `json:"pins"`
+	AccessRules []AccessRule            `json:"accessRules,omitempty"`
+}
+
+// AccessRule is an explicit dev fixture for future Access behavior. ObjectIDs
+// can restrict one operation to uploaded input files without granting source
+// resource reads. It is configured only by the authenticated dev control API.
+type AccessRule struct {
+	Principal  v.Principal         `json:"principal"`
+	Operations map[string]bool     `json:"operations"`
+	ObjectIDs  map[string][]string `json:"objectIds,omitempty"`
 }
 type Server struct {
 	mu                     sync.RWMutex
@@ -68,6 +79,24 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		if len(next.AccessRules) > 128 {
+			w.WriteHeader(400)
+			return
+		}
+		principals := map[v.Principal]bool{}
+		for _, rule := range next.AccessRules {
+			if rule.Principal.Subject == "" || rule.Principal.Domain == "" || principals[rule.Principal] || len(rule.Operations) > 64 || len(rule.ObjectIDs) > 64 {
+				w.WriteHeader(400)
+				return
+			}
+			principals[rule.Principal] = true
+			for _, objects := range rule.ObjectIDs {
+				if len(objects) > 64 {
+					w.WriteHeader(400)
+					return
+				}
+			}
+		}
 		s.mu.Lock()
 		s.state = next
 		s.mu.Unlock()
@@ -94,7 +123,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !decode(w, r, &in) {
 			return
 		}
-		principalAllowed := in.Principal == (v.Principal{Subject: "demo", Domain: "core"}) || in.Principal == (v.Principal{Subject: "leafrun-generation", Domain: "service"})
+		principalAllowed := in.Principal == (v.Principal{Subject: "demo", Domain: "core"}) || in.Principal == (v.Principal{Subject: "leafrun-generation", Domain: "service"}) || in.Principal == (v.Principal{Subject: "leafrun-projects", Domain: "service"})
+		for _, rule := range s.state.AccessRules {
+			if rule.Principal != in.Principal {
+				continue
+			}
+			principalAllowed = rule.Operations[in.Operation] || rule.Operations["*"]
+			if objects, restricted := rule.ObjectIDs[in.Operation]; restricted {
+				principalAllowed = principalAllowed && slices.Contains(objects, in.ObjectID)
+			}
+			break
+		}
 		respond(w, v.AccessDecision{Allowed: !s.state.Deny && in.Scope == s.state.Scope && principalAllowed})
 	case "/internal/v1/checks/publishable":
 		var in v.PublishabilityCheck

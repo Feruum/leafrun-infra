@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leafrun/leafrun-infra/internal/e04events"
+	"github.com/leafrun/leafrun-infra/internal/e05events"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -37,5 +38,8 @@ func run() error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	return e04events.Provision(ctx, js)
+	if err := e04events.Provision(ctx, js); err != nil {
+		return err
+	}
+	return e05events.Provision(ctx, js)
 }

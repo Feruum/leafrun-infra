@@ -8,7 +8,7 @@ try {
  $evidenceFile=Join-Path $infraRoot '.cache/ci-evidence.json'
  [IO.Directory]::CreateDirectory((Split-Path $evidenceFile))|Out-Null
  $pins=Get-Content -Raw -LiteralPath 'ci/dependencies.json'|ConvertFrom-Json
- foreach($repo in @('infra','core','contracts','storage','generation','platform','integrations')){
+ foreach($repo in @('infra','core','contracts','storage','generation','projects','platform','integrations')){
   $source=Join-Path $taskRoot $repo
   if($repo -eq 'integrations' -and -not(Test-Path -LiteralPath (Join-Path $source 'go.mod'))){$source=[IO.Path]::GetFullPath((Join-Path $taskRoot '../integrations'))}
   if($repo -eq 'integrations' -and $env:LEAFRUN_INTEGRATIONS_DIR){$source=[IO.Path]::GetFullPath($env:LEAFRUN_INTEGRATIONS_DIR)}
@@ -28,6 +28,7 @@ try {
  & ./scripts/start.ps1 -DockerContext $DockerContext
  $evidence.checks.standStart=$true
  . ./scripts/test-env.ps1
+ $env:LEAFRUN_E05_INTEGRATION='1'
  $goVersion=& go version
  if($LASTEXITCODE -ne 0 -or $goVersion -notmatch '^go version go1\.27\.'){throw 'Go 1.27 must be on PATH'}
  $typstVersion=& typst --version
@@ -36,6 +37,7 @@ try {
  go test -count=1 ./...
  if($LASTEXITCODE -ne 0){throw 'Host integration tests failed'}
  $evidence.checks.hostIntegration=$true
+ $evidence.checks.e05ReleaseSelectionAndD16=$true
  go vet ./...
  if($LASTEXITCODE -ne 0){throw 'Host vet failed'}
  $evidence.checks.hostVet=$true
@@ -44,10 +46,12 @@ try {
  $evidence.checks.hostBuild=$true
  & ./scripts/restart-check.ps1 -DockerContext $DockerContext
  $evidence.checks.restartPersistence=$true
+ $evidence.checks.e05ReleaseSelectionRestart=$true
  & ./scripts/controller-crash-check.ps1 -DockerContext $DockerContext
  $evidence.checks.controllerCrashIndependentTimeout=$true
  & ./scripts/broker-outage-check.ps1 -DockerContext $DockerContext
  $evidence.checks.brokerOutageDurableDelivery=$true
+ $evidence.checks.e05ProjectsBrokerOutage=$true
  & ./scripts/linux-checks.ps1 -DockerContext $DockerContext -TypstBinary $TypstBinary
  $evidence.checks.allRepositoryLinuxRaceVetBuild=$true
  $evidence.passed=$true

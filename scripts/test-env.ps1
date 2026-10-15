@@ -29,6 +29,13 @@ $env:STORAGE_TOKEN=$cfg.STORAGE_TOKEN
 $env:FIXTURE_ADMIN_TOKEN=$cfg.FIXTURE_ADMIN_TOKEN
 $env:LEAFRUN_DEV_FIXTURE='true'
 $env:GENERATION_TEST_DATABASE_URL="postgres://generation:$($cfg.GENERATION_DB_PASSWORD)@127.0.0.1:58434/generation_test?sslmode=disable"
+$env:PROJECTS_TEST_DATABASE_URL="postgres://projects:$($cfg.PROJECTS_DB_PASSWORD)@127.0.0.1:58434/projects_test?sslmode=disable"
+$env:LEAFRUN_E05_PROJECTS_URL='http://127.0.0.1:58096'
+$env:LEAFRUN_E05_PROJECTS_CATALOG_URL="postgres://projects:$($cfg.PROJECTS_DB_PASSWORD)@127.0.0.1:58434/projects?sslmode=disable"
+$env:LEAFRUN_E05_GENERATION_CATALOG_URL="postgres://generation:$($cfg.GENERATION_DB_PASSWORD)@127.0.0.1:58434/generation?sslmode=disable"
+$env:LEAFRUN_E05_STORAGE_CATALOG_URL="postgres://storage:$($cfg.STORAGE_DB_PASSWORD)@127.0.0.1:58434/storage?sslmode=disable"
+$env:PROJECTS_GENERATION_TOKEN=$cfg.PROJECTS_GENERATION_TOKEN
+$env:GENERATION_ONLY_USER_TOKEN=$cfg.GENERATION_ONLY_USER_TOKEN
 $env:PLATFORM_TEST_DATABASE_URL="postgres://dev_consumer:$($cfg.CONSUMER_DB_PASSWORD)@127.0.0.1:58434/platform_test?sslmode=disable"
 $env:LEAFRUN_E04_EVENTS_INTEGRATION='1'
 $env:LEAFRUN_NATS_ADDRESS='nats://127.0.0.1:54222'
@@ -36,6 +43,7 @@ $env:LEAFRUN_NATS_USER='bootstrap'
 $env:LEAFRUN_NATS_PASSWORD=$cfg.NATS_ADMIN_PASSWORD
 $env:LEAFRUN_NATS_GENERATION_PASSWORD=$cfg.NATS_GENERATION_PASSWORD
 $env:LEAFRUN_NATS_CONSUMER_PASSWORD=$cfg.NATS_CONSUMER_PASSWORD
+$env:LEAFRUN_NATS_PROJECTS_PASSWORD=$cfg.NATS_PROJECTS_PASSWORD
 $env:LEAFRUN_E04_INTEGRATION='1'
 $env:LEAFRUN_E04_STORAGE_URL='http://127.0.0.1:58091'
 $env:LEAFRUN_E04_GENERATION_URL='http://127.0.0.1:58090'
@@ -49,6 +57,6 @@ $env:GOCACHE=Join-Path $workspaceRoot '.cache/go-build'
 $env:GOMODCACHE=Join-Path $workspaceRoot '.cache/go-mod'
 $env:PATH=(Join-Path $workspaceRoot '.tools/typst-v0.15.1/typst-x86_64-pc-windows-msvc')+[IO.Path]::PathSeparator+$env:PATH
 # These are source repositories created by the sandbox, not arbitrary trusted trees.
-$repos=@($infraRoot,(Join-Path $taskRoot 'storage'),(Join-Path $taskRoot 'core'),(Join-Path $taskRoot 'contracts'),(Join-Path $taskRoot 'generation'),(Join-Path $taskRoot 'platform'),$paths.integrations)
+$repos=@($infraRoot,(Join-Path $taskRoot 'storage'),(Join-Path $taskRoot 'core'),(Join-Path $taskRoot 'contracts'),(Join-Path $taskRoot 'generation'),(Join-Path $taskRoot 'projects'),(Join-Path $taskRoot 'platform'),$paths.integrations)
 $env:GIT_CONFIG_COUNT="$($repos.Count)"
 for($i=0;$i -lt $repos.Count;$i++){[Environment]::SetEnvironmentVariable("GIT_CONFIG_KEY_$i",'safe.directory','Process');[Environment]::SetEnvironmentVariable("GIT_CONFIG_VALUE_$i",$repos[$i].Replace('\','/'),'Process')}

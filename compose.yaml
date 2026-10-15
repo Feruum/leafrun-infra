@@ -35,6 +35,7 @@ services:
       STORAGE_DB_PASSWORD: ${STORAGE_DB_PASSWORD:?}
       TEMPORAL_DB_PASSWORD: ${TEMPORAL_DB_PASSWORD:?}
       GENERATION_DB_PASSWORD: ${GENERATION_DB_PASSWORD:?}
+      PROJECTS_DB_PASSWORD: ${PROJECTS_DB_PASSWORD:?}
       CONSUMER_DB_PASSWORD: ${CONSUMER_DB_PASSWORD:?}
     ports: ["127.0.0.1:58434:5432"]
     volumes:
@@ -123,7 +124,7 @@ services:
       AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
       LEAFRUN_STORAGE_OWNER_URL: http://owner-router:8082
       LEAFRUN_STORAGE_OWNER_TOKEN: ${OWNER_TOKEN}
-      LEAFRUN_STORAGE_SERVICE_CREDENTIALS: '[{"token":"${STORAGE_TOKEN}","subject":"demo","domain":"core"},{"token":"${GENERATION_STORAGE_TOKEN}","subject":"leafrun-generation","domain":"service"}]'
+      LEAFRUN_STORAGE_SERVICE_CREDENTIALS: '[{"token":"${STORAGE_TOKEN}","subject":"demo","domain":"core"},{"token":"${GENERATION_STORAGE_TOKEN}","subject":"leafrun-generation","domain":"service"},{"token":"${PROJECTS_STORAGE_TOKEN}","subject":"leafrun-projects","domain":"service"},{"token":"${GENERATION_ONLY_USER_TOKEN}","subject":"generator","domain":"user"}]'
       LEAFRUN_STORAGE_TEMPORAL_ADDRESS: temporal:7233
       LEAFRUN_STORAGE_SWEEP_INTERVAL: ${STORAGE_SWEEP_INTERVAL:-5m}
     command: [migrate]
@@ -171,7 +172,74 @@ services:
       LEAFRUN_ACCESS_TOKEN: ${OWNER_TOKEN}
       LEAFRUN_GENERATION_URL: http://generation-api:8080
       LEAFRUN_GENERATION_OWNER_TOKEN: ${GENERATION_OWNER_TOKEN}
+      LEAFRUN_PROJECTS_URL: http://projects-api:8084
+      LEAFRUN_PROJECTS_OWNER_TOKEN: ${PROJECTS_OWNER_CALLBACK_TOKEN}
     depends_on: [owner-fixture]
+  projects-migrate:
+    profiles: [dev]
+    image: &projects-image leafrun-e05-projects:source
+    build: &projects-build
+      context: ./.cache/context/infra
+      dockerfile: Dockerfile.projects
+      additional_contexts:
+        projects: ./.cache/context/projects
+        contracts: ./.cache/context/contracts
+        core: ./.cache/context/core
+        platform: ./.cache/context/platform
+        integrations: ./.cache/context/integrations
+    environment: &projects-env
+      PROJECTS_ROLE: migrate
+      PROJECTS_HTTP_ADDR: :8084
+      PROJECTS_DATABASE_URL: postgres://projects:${PROJECTS_DB_PASSWORD}@postgres:5432/projects?sslmode=disable
+      PROJECTS_STORAGE_URL: http://storage-api:8081
+      PROJECTS_STORAGE_TOKEN: ${PROJECTS_STORAGE_TOKEN}
+      PROJECTS_OWNER_URL: http://owner-fixture:8082
+      PROJECTS_OWNER_TOKEN: ${OWNER_TOKEN}
+      PROJECTS_OWNER_CALLBACK_TOKEN: ${PROJECTS_OWNER_CALLBACK_TOKEN}
+      PROJECTS_GENERATION_TOKEN: ${PROJECTS_GENERATION_TOKEN}
+      PROJECTS_CREDENTIALS_JSON: '{"${GENERATION_USER_TOKEN}":{"subject":"demo","domain":"core"},"${GENERATION_ONLY_USER_TOKEN}":{"subject":"generator","domain":"user"}}'
+    depends_on:
+      postgres: {condition: service_healthy}
+  projects-api:
+    profiles: [dev]
+    image: *projects-image
+    build: *projects-build
+    environment:
+      <<: *projects-env
+      PROJECTS_ROLE: api
+    depends_on:
+      projects-migrate: {condition: service_completed_successfully}
+      storage-api: {condition: service_started}
+      owner-fixture: {condition: service_started}
+    ports: ["127.0.0.1:58096:8084"]
+    restart: unless-stopped
+  projects-reconciler:
+    profiles: [dev]
+    image: *projects-image
+    build: *projects-build
+    environment:
+      <<: *projects-env
+      PROJECTS_ROLE: reconcile
+    depends_on:
+      projects-migrate: {condition: service_completed_successfully}
+      storage-api: {condition: service_started}
+      owner-fixture: {condition: service_started}
+    restart: unless-stopped
+  projects-event-relay:
+    profiles: [dev]
+    image: *projects-image
+    build: *projects-build
+    environment:
+      PROJECTS_ROLE: event-relay
+      PROJECTS_DATABASE_URL: postgres://projects:${PROJECTS_DB_PASSWORD}@postgres:5432/projects?sslmode=disable
+      PROJECTS_NATS_ADDRESS: nats://nats:4222
+      PROJECTS_NATS_USER: projects
+      PROJECTS_NATS_PASSWORD: ${NATS_PROJECTS_PASSWORD}
+    depends_on:
+      projects-migrate: {condition: service_completed_successfully}
+      nats: {condition: service_healthy}
+      jetstream-bootstrap: {condition: service_completed_successfully}
+    restart: unless-stopped
   generation-migrate:
     profiles: [dev]
     image: &generation-image leafrun-e04-generation:source
@@ -201,7 +269,9 @@ services:
       GENERATION_OWNER_URL: http://owner-fixture:8082
       GENERATION_OWNER_TOKEN: ${OWNER_TOKEN}
       GENERATION_OWNER_CALLBACK_TOKEN: ${GENERATION_OWNER_TOKEN}
-      GENERATION_CREDENTIALS_JSON: '{"${GENERATION_USER_TOKEN}":{"subject":"demo","domain":"core"}}'
+      GENERATION_CREDENTIALS_JSON: '{"${GENERATION_USER_TOKEN}":{"subject":"demo","domain":"core"},"${GENERATION_ONLY_USER_TOKEN}":{"subject":"generator","domain":"user"}}'
+      GENERATION_PROJECTS_URL: http://projects-api:8084
+      GENERATION_PROJECTS_TOKEN: ${PROJECTS_GENERATION_TOKEN}
       GENERATION_ENGINE_VERSION: 0.15.1
       GENERATION_HTTP_ADDR: :8080
       GENERATION_TEMPORAL_ADDRESS: temporal:7233

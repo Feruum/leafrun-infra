@@ -3,7 +3,7 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'workspace.ps1')
 $contextRoot=[IO.Path]::GetFullPath((Join-Path $infraRoot '.cache/context'))
 [IO.Directory]::CreateDirectory($contextRoot)|Out-Null
-foreach($repo in @('core','contracts','storage','generation','platform','integrations','infra')){
+foreach($repo in @('core','contracts','storage','generation','projects','platform','integrations','infra')){
  $source=$paths[$repo]
  $safe='safe.directory='+$source.Replace('\','/')
  $files=git -c $safe -C $source ls-files

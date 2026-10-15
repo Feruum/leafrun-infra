@@ -5,7 +5,10 @@ package ownerrouter
 import (
 	"bytes"
 	"crypto/subtle"
+	"encoding/json"
 	"errors"
+	jsonvalue "github.com/leafrun/leafrun-contracts/jsonvalue/v1"
+	storagev1 "github.com/leafrun/leafrun-contracts/storage/v1"
 	"io"
 	"net/http"
 	"net/url"
@@ -16,6 +19,7 @@ import (
 type Config struct {
 	DevFixture                                                             bool
 	FixtureURL, FixtureToken, GenerationURL, GenerationToken, StorageToken string
+	ProjectsURL, ProjectsToken                                             string
 }
 type Server struct {
 	config Config
@@ -32,10 +36,19 @@ func New(config Config, client *http.Client) (*Server, error) {
 			return nil, errors.New("invalid configured owner URL")
 		}
 	}
+	if config.ProjectsURL != "" || config.ProjectsToken != "" {
+		u, err := url.Parse(config.ProjectsURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || strings.Contains(config.ProjectsURL, "#") || config.ProjectsToken == "" {
+			return nil, errors.New("Projects owner URL and fixed credential are required together")
+		}
+	}
 	if client == nil {
 		client = &http.Client{Timeout: 10 * time.Second}
 	}
 	copy := *client
+	if copy.Timeout <= 0 {
+		copy.Timeout = 10 * time.Second
+	}
 	copy.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	return &Server{config: config, client: &copy}, nil
 }
@@ -65,6 +78,28 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(413)
 		return
+	}
+	if r.URL.Path == "/internal/v1/checks/pin-owner" {
+		var check storagev1.PinOwnerCheck
+		if jsonvalue.Unmarshal(body, &check, 1<<20) != nil {
+			w.WriteHeader(400)
+			return
+		}
+		switch {
+		case check.HolderID == "leafrun-projects" && check.HolderDomain == "service":
+			if s.config.ProjectsURL == "" {
+				w.WriteHeader(503)
+				return
+			}
+			base, token = s.config.ProjectsURL, s.config.ProjectsToken
+		case check.HolderID == "leafrun-generation" && check.HolderDomain == "service":
+		case check.HolderID == "demo" && check.HolderDomain == "core":
+			base, token = s.config.FixtureURL, s.config.FixtureToken
+		default:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(storagev1.PinOwnerDecision{State: storagev1.OwnerUnknown})
+			return
+		}
 	}
 	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, strings.TrimRight(base, "/")+r.URL.Path, bytes.NewReader(body))
 	if err != nil {
