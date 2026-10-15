@@ -70,6 +70,12 @@ same three failures were reproduced locally before repairing the test helper.
 The full native suite passed with a CRLF fixture. Production project parsing
 remains unchanged and direct fixture reads still exercise native line endings.
 
+The first full hosted run passed ten checks, then exposed a one-shot Linux
+supervisor test observation immediately after SIGKILL. The assertion now polls
+all visible members of the process group for a bounded second and still rejects
+any live member. Linux-only helpers are build-tagged; Windows compilation and
+repeated Linux race tests passed. Production termination behavior is unchanged.
+
 ## Reproducible complete qualification
 
 ```powershell

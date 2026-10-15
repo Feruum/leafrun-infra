@@ -114,7 +114,7 @@ Files: Infra `compose.yaml`, `postgres/init.sh`, `Dockerfile.projects`, `Dockerf
 
 ## Task 8: Linked draft delivery and Linear evidence
 
-- [ ] Verify clean reviewed commits and all checks. Create/update writable forks via stored GitHub authorization; never overwrite a remote branch changed outside this task.
-- [ ] Publish linked Core/Contracts/Storage/Projects/Generation/Infra draft PRs with exact local-tree/remote-tree equality. Attach every created PR to this chat. Pin cross-repository hosted CI to exact published commits.
+- [x] Verify clean reviewed commits and all local checks. Create/update writable forks via stored GitHub authorization; never overwrite a remote branch changed outside this task.
+- [x] Publish linked Core/Contracts/Storage/Projects/Generation/Infra draft PRs with exact local-tree/remote-tree equality. Attach every created PR to this chat. Pin cross-repository hosted CI to exact published commits.
 - [ ] Verify hosted CI at the final refs, download and validate bounded evidence. Update Linear LEA-33–LEA-40 with accurate implemented scope, review fixes, PR links and qualification results; leave formal Done/merge/release for separately accepted prerequisites.
 - [ ] Report concrete finished work and any actual remaining limits, with links. Do not mark a task complete from implementation alone if required integration or review remains.
