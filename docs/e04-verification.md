@@ -68,6 +68,22 @@ The hosted Infra workflow runs the complete sequence again from clean, exact
 published revisions with `-VerifyPins`; its sanitized artifact records source
 commits/trees and each check outcome. Its final run URL is attached to the PR.
 
+## Repeated review qualification, 2026-10-15
+
+The final dependency pins include the repeated E04 review fixes. Storage is
+authoritative for pending/active pin expiry, including skewed API clocks and
+definite activation rejection. Publication replays completed operation receipts
+before rotating an expired writer; its three-rotation budget persists across
+controller restarts. Successful stopped attempts schedule guarded staging cleanup.
+
+Pin cleanup now uses the exact scope/object/holder/retention-policy receipt from
+Storage. Authorization precedes lookup, so a hidden 404 cannot falsely acknowledge
+cleanup and an already purged reference can safely return a bound absent receipt.
+Generation verifies the actual terminal producer payload, scope and receipt.
+Independent specification and quality reviews passed; complete native Contracts,
+Storage and Generation tests, vet and builds passed with real PostgreSQL/S3/Temporal.
+The pinned hosted workflow repeats the inherited stand and Linux race checks.
+
 ## Acceptance boundary
 
 This is draft delivery. E01/E02 acceptance, E03 integration, merges, releases and

@@ -5,15 +5,15 @@
   },
   "contracts": {
     "repository": "Feruum/leafrun-contracts",
-    "ref": "230be09c7e6d8b59994169e778b6ee290fbaaf42"
+    "ref": "8df929c5b9f6a8537bb7fab9f86df6e5d0007dac"
   },
   "storage": {
     "repository": "Feruum/leafrun-storage",
-    "ref": "7687b107f90237ea675a0777a0b973c274ecdb5e"
+    "ref": "866d64d00eab916056f874a0736be78dca07d1d0"
   },
   "generation": {
     "repository": "Feruum/Leafrun",
-    "ref": "9231c7aa3c84554af6722fe2c64dee627325127d"
+    "ref": "b0795ee7eaf4a7da218d026f7ee2fad4fba4ecbf"
   },
   "platform": {
     "repository": "Feruum/leafrun-platform",
