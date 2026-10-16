@@ -23,7 +23,22 @@ try {
  $env:AWS_ACCESS_KEY_ID=$e06Values.E06_S3_ADMIN_ACCESS_KEY;$env:AWS_SECRET_ACCESS_KEY=$e06Values.E06_S3_ADMIN_SECRET_KEY;$env:AWS_REGION='us-east-1';$env:AWS_EC2_METADATA_DISABLED='true'
  $env:LEAFRUN_DEV_FIXTURE='true';$env:LEAFRUN_STORAGE_S3_ENDPOINT='http://127.0.0.1:58643';$env:LEAFRUN_STORAGE_S3_BUCKET='leafrun-e06-storage'
  Push-Location $e06InfraRoot
- try {& go run ./cmd/bootstrap-s3;if($LASTEXITCODE -ne 0){throw 'E06 private bucket capability bootstrap failed'}}finally{Pop-Location}
+ try {
+  & go run ./cmd/bootstrap-s3
+  if($LASTEXITCODE -ne 0){
+   $e06S3Container=Invoke-E06Compose ps --all -q seaweed
+   if($e06S3Container -and @($e06S3Container).Count -eq 1){
+    $e06S3Project=& docker --context $DockerContext inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' $e06S3Container
+    if($LASTEXITCODE -eq 0 -and $e06S3Project -eq 'leafrun-e06'){
+     & docker --context $DockerContext inspect --format 'S3 state={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} restarts={{.RestartCount}}' $e06S3Container
+     $e06S3Logs=(& docker --context $DockerContext logs --tail 150 $e06S3Container 2>&1)-join "`n"
+     @{s3PermissionDenied=($e06S3Logs -match 'permission denied');s3DiskFull=($e06S3Logs -match 'no space left');s3InvalidFlag=($e06S3Logs -match 'flag provided but not defined');s3InvalidJSON=($e06S3Logs -match 'invalid character|unexpected end of JSON')}|ConvertTo-Json -Compress|Write-Output
+     Remove-Variable e06S3Logs
+    }
+   }
+   throw 'E06 private bucket capability bootstrap failed'
+  }
+ }finally{Pop-Location}
  foreach($e06Migration in @('storage-migrate','projects-migrate','generation-migrate','access-migrate')){Invoke-E06Compose run --rm --no-deps $e06Migration}
  & (Join-Path $PSScriptRoot 'e06-owners-refresh.ps1') -DockerContext $DockerContext
  & (Join-Path $PSScriptRoot 'e06-audit-start.ps1') -DockerContext $DockerContext

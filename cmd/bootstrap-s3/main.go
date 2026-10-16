@@ -36,13 +36,17 @@ func main() {
 		buckets = []string{"leafrun-e06-storage", "leafrun-e06-storage-test"}
 	}
 	for _, bucket = range buckets {
+		var lastObservedError error
 		for {
 			if _, err = client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: &bucket}); err == nil {
 				break
 			}
+			if ctx.Err() == nil || lastObservedError == nil {
+				lastObservedError = err
+			}
 			select {
 			case <-ctx.Done():
-				log.Fatal("development bucket did not become ready")
+				log.Fatal("development bucket did not become ready; ", readinessDiagnostic(lastObservedError))
 			case <-time.After(time.Second):
 			}
 		}
