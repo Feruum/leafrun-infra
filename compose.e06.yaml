@@ -360,12 +360,20 @@ services:
       interval: 2s
       timeout: 2s
       retries: 30
+  seaweed-config-init:
+    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    user: '0:0'
+    entrypoint: [sh, /stand/e06-seaweed-config-init.sh]
+    network_mode: none
+    read_only: true
+    volumes: ['./.cache/e06/s3.json:/source/s3.json:ro', 'e06-seaweed-config:/runtime', './scripts/e06-seaweed-config-init.sh:/stand/e06-seaweed-config-init.sh:ro']
   seaweed:
     image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
     command: [mini, '-dir=/data', '-ip=seaweed', '-ip.bind=0.0.0.0', '-master.telemetry=false', '-admin.ui=false', '-webdav=false', '-s3.port.iceberg=0', '-s3.port.lance=0', '-s3.allowDeleteBucketNotEmpty=false', '-s3.config=/stand/s3.json']
     environment: {S3_BUCKET: 'leafrun-e06-storage,leafrun-e06-storage-test'}
     ports: ['127.0.0.1:58643:8333']
-    volumes: [e06-seaweed-data:/data, './.cache/e06/s3.json:/stand/s3.json:ro']
+    volumes: [e06-seaweed-data:/data, 'e06-seaweed-config:/stand:ro']
+    depends_on: {seaweed-config-init: {condition: service_completed_successfully}}
     restart: unless-stopped
   temporal-schema:
     image: temporalio/admin-tools:1.32.1@sha256:9ef0dc5b063bf4ffd5c1512de72e0e73e225bd2c7006a18ce69bd592a8862a83
@@ -661,4 +669,5 @@ volumes:
   e06-jetstream-data:
   e06-postgres-data:
   e06-seaweed-data:
+  e06-seaweed-config:
   e06-generation-staging:

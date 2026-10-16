@@ -16,6 +16,7 @@ try {
   $e06SchemaVariable=if($e06Database -eq 'temporal'){'E06_TEMPORAL_SCHEMA_EXISTS'}else{'E06_VISIBILITY_SCHEMA_EXISTS'}
   [Environment]::SetEnvironmentVariable($e06SchemaVariable,([bool]($e06SchemaExists -eq 't')).ToString().ToLowerInvariant(),'Process')
  }
+ Invoke-E06Compose run --rm --no-deps seaweed-config-init
  Invoke-E06Compose up --detach --no-deps seaweed
  Invoke-E06Compose run --rm --no-deps temporal-schema
  Invoke-E06Compose up --detach --no-deps temporal
