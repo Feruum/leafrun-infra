@@ -32,6 +32,7 @@ func TestRouterUsesExactProjectsPinOwnerAndCredential(t *testing.T) {
 	data, _ := json.Marshal(storagev1.PinOwnerCheck{PinID: "pin1", HolderID: "leafrun-projects", HolderDomain: "service"})
 	req := httptest.NewRequest("POST", "/internal/v1/checks/pin-owner", bytes.NewReader(data))
 	req.Header.Set("Authorization", "Bearer storage")
+	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	if w.Code != 200 || projectsCalls != 1 {
@@ -49,6 +50,7 @@ func TestProjectsOwnerUnavailableDoesNotFallBack(t *testing.T) {
 	data, _ := json.Marshal(storagev1.PinOwnerCheck{PinID: "pin1", HolderID: "leafrun-projects", HolderDomain: "service"})
 	req := httptest.NewRequest("POST", "/internal/v1/checks/pin-owner", bytes.NewReader(data))
 	req.Header.Set("Authorization", "Bearer storage")
+	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	if w.Code != 503 {

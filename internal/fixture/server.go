@@ -56,7 +56,7 @@ func respond(w http.ResponseWriter, x any) {
 	_ = json.NewEncoder(w).Encode(x)
 }
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/healthz" && r.Method == "GET" {
+	if (r.URL.Path == "/healthz" || r.URL.Path == "/readyz") && r.Method == "GET" {
 		w.WriteHeader(204)
 		return
 	}

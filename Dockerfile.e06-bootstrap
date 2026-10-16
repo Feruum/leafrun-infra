@@ -1,0 +1,15 @@
+# syntax=docker/dockerfile:1.7
+FROM golang:1.27.0-bookworm@sha256:ded31c68586d2e49e760acc2e65a884b23d032e9bbbed0ae0c55abd3fcaf4452 AS build
+WORKDIR /src
+COPY --from=contracts . ./contracts
+COPY --from=platform . ./platform
+COPY --from=core . ./core
+COPY --from=integrations . ./integrations
+COPY . ./infra
+RUN printf 'go 1.27.0\nuse (\n ./infra\n ./contracts\n ./platform\n ./core\n ./integrations\n)\nreplace github.com/leafrun/leafrun-contracts v0.1.0 => ./contracts\nreplace github.com/leafrun/leafrun-platform v0.1.0 => ./platform\nreplace github.com/leafrun/leafrun-document-core v0.1.0 => ./core\nreplace github.com/leafrun/leafrun-integrations v0.1.0 => ./integrations\n' > go.work
+WORKDIR /src/infra
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 go build -buildvcs=false -trimpath -o /out/bootstrap ./cmd/e06-jetstream-bootstrap
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+COPY --from=build /out/bootstrap /bootstrap
+USER 65532:65532
+ENTRYPOINT ["/bootstrap"]

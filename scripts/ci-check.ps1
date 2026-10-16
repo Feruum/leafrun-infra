@@ -1,5 +1,7 @@
-param([Parameter(Mandatory=$true)][string]$TypstBinary,[string]$DockerContext='desktop-linux',[switch]$VerifyPins)
+param([Parameter(Mandatory=$true)][string]$TypstBinary,[string]$DockerContext='desktop-linux',[switch]$VerifyPins,[string]$DependencyManifest='')
 $ErrorActionPreference='Stop'
+$previousExportRequirement=$env:LEAFRUN_SOURCE_REQUIRE_CLEAN
+if($VerifyPins){$env:LEAFRUN_SOURCE_REQUIRE_CLEAN='1'}
 Push-Location (Join-Path $PSScriptRoot '..')
 try {
  $infraRoot=[IO.Path]::GetFullPath((Get-Location).Path)
@@ -7,19 +9,21 @@ try {
  $evidence=[ordered]@{schemaVersion=1;startedAt=[DateTime]::UtcNow.ToString('o');completedAt=$null;inputs=[ordered]@{};checks=[ordered]@{};passed=$false}
  $evidenceFile=Join-Path $infraRoot '.cache/ci-evidence.json'
  [IO.Directory]::CreateDirectory((Split-Path $evidenceFile))|Out-Null
- $pins=Get-Content -Raw -LiteralPath 'ci/dependencies.json'|ConvertFrom-Json
- foreach($repo in @('infra','core','contracts','storage','generation','projects','platform','integrations')){
+ if(-not $DependencyManifest){$DependencyManifest=Join-Path $infraRoot 'ci/dependencies.json'}
+ $pins=Get-Content -Raw -LiteralPath $DependencyManifest|ConvertFrom-Json
+ foreach($repo in @('infra','core','contracts','storage','generation','projects','platform','integrations','access','audit')){
   $source=Join-Path $taskRoot $repo
   if($repo -eq 'integrations' -and -not(Test-Path -LiteralPath (Join-Path $source 'go.mod'))){$source=[IO.Path]::GetFullPath((Join-Path $taskRoot '../integrations'))}
   if($repo -eq 'integrations' -and $env:LEAFRUN_INTEGRATIONS_DIR){$source=[IO.Path]::GetFullPath($env:LEAFRUN_INTEGRATIONS_DIR)}
   $commit=git -c "safe.directory=$($source.Replace('\','/'))" -C $source rev-parse HEAD
   if($LASTEXITCODE -ne 0){throw "Cannot identify $repo source"}
-  $tree=git -c "safe.directory=$($source.Replace('\','/'))" -C $source rev-parse 'HEAD^{tree}'
+  $tree=git -c "safe.directory=$($source.Replace('\','/'))" -C $source rev-parse ($commit+'^{tree}')
   if($LASTEXITCODE -ne 0){throw "Cannot identify $repo tree"}
   $changes=git -c "safe.directory=$($source.Replace('\','/'))" -C $source status --porcelain
   if($LASTEXITCODE -ne 0){throw "Cannot inspect $repo checkout"}
   if($VerifyPins -and $changes){throw "Pinned verification requires a clean $repo checkout"}
   if($VerifyPins -and $repo -ne 'infra' -and $commit -ne $pins.$repo.ref){throw "Checkout does not match pinned $repo dependency"}
+  if($VerifyPins -and $repo -ne 'infra' -and ($pins.$repo.tree -notmatch '^[0-9a-f]{40}$' -or $tree -ne $pins.$repo.tree)){throw "Tree does not match pinned $repo dependency"}
   $evidence.inputs[$repo]=[ordered]@{commit=$commit;tree=$tree;dirty=[bool]$changes}
  }
  & ./scripts/init-env.ps1
@@ -56,6 +60,7 @@ try {
  $evidence.checks.allRepositoryLinuxRaceVetBuild=$true
  $evidence.passed=$true
 } finally {
+ if($null -eq $previousExportRequirement){Remove-Item Env:LEAFRUN_SOURCE_REQUIRE_CLEAN -ErrorAction SilentlyContinue}else{$env:LEAFRUN_SOURCE_REQUIRE_CLEAN=$previousExportRequirement}
  if($null -ne $evidence){$evidence.completedAt=[DateTime]::UtcNow.ToString('o');[IO.File]::WriteAllText($evidenceFile,($evidence|ConvertTo-Json -Depth 8))}
  Pop-Location
 }

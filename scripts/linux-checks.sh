@@ -15,6 +15,8 @@ use (
  /work/platform
  /work/infra
  /work/integrations
+ /work/access
+ /work/audit
 )
 replace github.com/leafrun/leafrun-contracts v0.1.0 => /work/contracts
 replace github.com/leafrun/leafrun-document-core v0.1.0 => /work/core
@@ -25,14 +27,14 @@ export GOWORK=/tmp/e05.work
 export GOFLAGS=-buildvcs=false
 # Host checkouts belong to the runner UID while this verifier runs as root.
 # Nested Go builds also inspect Git, so trust only these fixed workspace roots.
-for source in core contracts storage generation projects platform infra integrations; do
+for source in core contracts storage generation projects platform infra integrations access audit; do
   git config --global --add safe.directory "/work/$source"
 done
-for repo in ${LEAFRUN_E03_CHECK_REPOS:-core contracts storage generation projects platform infra}; do
-  case "$repo" in core|contracts|storage|generation|projects|platform|infra) ;; *) echo 'Invalid repository' >&2; exit 1;; esac
+for repo in ${LEAFRUN_E03_CHECK_REPOS:-core contracts storage generation projects platform infra integrations access audit}; do
+  case "$repo" in core|contracts|storage|generation|projects|platform|infra|integrations|access|audit) ;; *) echo 'Invalid repository' >&2; exit 1;; esac
   echo "Verifying $repo"
   cd "/work/$repo"
-  go test -race ./... -count=1
+  go test -race -json -timeout=15m ./... -count=1
   go vet ./...
   go build -buildvcs=false ./...
 done

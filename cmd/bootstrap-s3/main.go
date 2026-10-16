@@ -28,10 +28,14 @@ func main() {
 		o.UsePathStyle = true
 	})
 	bucket := os.Getenv("LEAFRUN_STORAGE_S3_BUCKET")
-	if bucket != "leafrun-storage" && bucket != "leafrun-storage-test" {
+	if bucket != "leafrun-storage" && bucket != "leafrun-storage-test" && bucket != "leafrun-e06-storage" {
 		log.Fatal("dedicated development bucket required")
 	}
-	for _, bucket = range []string{"leafrun-storage", "leafrun-storage-test", "leafrun-storage-regression"} {
+	buckets := []string{"leafrun-storage", "leafrun-storage-test", "leafrun-storage-regression"}
+	if bucket == "leafrun-e06-storage" {
+		buckets = []string{"leafrun-e06-storage", "leafrun-e06-storage-test"}
+	}
+	for _, bucket = range buckets {
 		for {
 			if _, err = client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: &bucket}); err == nil {
 				break

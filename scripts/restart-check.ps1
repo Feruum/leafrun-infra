@@ -35,6 +35,6 @@ try {
  Remove-Item Env:LEAFRUN_E05_RECEIPT_FILE
  go test -count=1 -v ./e04 -run '^TestE05RestartPersistence$'
  if($LASTEXITCODE -ne 0){throw 'Persistent Projects release/selection/prepared-input/PDF check failed'}
- docker --context $DockerContext compose --profile dev run --rm temporal-namespace
+ docker --context $DockerContext compose --profile dev run --rm --no-deps temporal-namespace
  if($LASTEXITCODE -ne 0){throw 'Persistent Temporal namespace unavailable'}
 } finally {Remove-Item Env:LEAFRUN_E03_RECEIPT,Env:LEAFRUN_E03_RESTART_RECEIPT,Env:LEAFRUN_E04_RECEIPT_FILE,Env:LEAFRUN_E04_RESTART_RECEIPT,Env:LEAFRUN_E05_RECEIPT_FILE,Env:LEAFRUN_E05_RESTART_RECEIPT -ErrorAction SilentlyContinue;Pop-Location}

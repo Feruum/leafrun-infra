@@ -37,6 +37,7 @@ func TestRoutesAccessToExplicitFixtureAndOwnershipToGeneration(t *testing.T) {
 		}
 		req := httptest.NewRequest("POST", "/internal/v1/checks/"+path, bytes.NewBufferString(body))
 		req.Header.Set("Authorization", "Bearer storage")
+		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		if w.Code != 200 {
@@ -64,6 +65,7 @@ func TestRouterFailsClosedAndRequiresDevProfile(t *testing.T) {
 	}
 	req := httptest.NewRequest("POST", "/internal/v1/checks/publishable", bytes.NewBufferString(`{}`))
 	req.Header.Set("Authorization", "Bearer storage")
+	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	if w.Code != 503 {

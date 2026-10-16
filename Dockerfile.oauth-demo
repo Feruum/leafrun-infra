@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1.7
+FROM golang:1.27.0-bookworm@sha256:ded31c68586d2e49e760acc2e65a884b23d032e9bbbed0ae0c55abd3fcaf4452 AS build
+WORKDIR /src
+COPY internal/oauthdemo ./internal/oauthdemo
+COPY internal/hydraprovision ./internal/hydraprovision
+COPY internal/jsonbound ./internal/jsonbound
+COPY cmd/e06-oauth-demo ./cmd/e06-oauth-demo
+COPY cmd/e06-hydra-client ./cmd/e06-hydra-client
+RUN printf 'module github.com/leafrun/leafrun-infra\ngo 1.27.0\n' > go.mod
+RUN CGO_ENABLED=0 go build -buildvcs=false -trimpath -o /out/e06-oauth-demo ./cmd/e06-oauth-demo
+RUN CGO_ENABLED=0 go build -buildvcs=false -trimpath -o /out/e06-hydra-client ./cmd/e06-hydra-client
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+COPY --from=build /out/e06-oauth-demo /e06-oauth-demo
+COPY --from=build /out/e06-hydra-client /e06-hydra-client
+USER 65532:65532
+ENTRYPOINT ["/e06-oauth-demo"]

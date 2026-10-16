@@ -9,6 +9,7 @@ import (
 	"errors"
 	jsonvalue "github.com/leafrun/leafrun-contracts/jsonvalue/v1"
 	storagev1 "github.com/leafrun/leafrun-contracts/storage/v1"
+	"github.com/leafrun/leafrun-platform/authn"
 	"io"
 	"net/http"
 	"net/url"
@@ -17,6 +18,7 @@ import (
 )
 
 type Config struct {
+	AccessMode                                                             bool
 	DevFixture                                                             bool
 	FixtureURL, FixtureToken, GenerationURL, GenerationToken, StorageToken string
 	ProjectsURL, ProjectsToken                                             string
@@ -27,10 +29,14 @@ type Server struct {
 }
 
 func New(config Config, client *http.Client) (*Server, error) {
-	if !config.DevFixture || config.FixtureToken == "" || config.GenerationToken == "" || config.StorageToken == "" {
+	if config.DevFixture == config.AccessMode || config.DevFixture && config.FixtureToken == "" || config.GenerationToken == "" || config.StorageToken == "" {
 		return nil, errors.New("explicit dev fixture and all owner credentials are required")
 	}
-	for _, base := range []string{config.FixtureURL, config.GenerationURL} {
+	bases := []string{config.GenerationURL}
+	if config.DevFixture {
+		bases = append(bases, config.FixtureURL)
+	}
+	for _, base := range bases {
 		u, err := url.Parse(base)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || strings.Contains(base, "#") {
 			return nil, errors.New("invalid configured owner URL")
@@ -46,6 +52,7 @@ func New(config Config, client *http.Client) (*Server, error) {
 		client = &http.Client{Timeout: 10 * time.Second}
 	}
 	copy := *client
+	copy.Jar = nil
 	if copy.Timeout <= 0 {
 		copy.Timeout = 10 * time.Second
 	}
@@ -57,7 +64,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(204)
 		return
 	}
-	if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") || subtle.ConstantTimeCompare([]byte(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")), []byte(s.config.StorageToken)) != 1 {
+	selected, credentialErr := authn.Credentials(r, authn.DefaultSessionCookieName)
+	if credentialErr != nil || selected.SessionCookie != "" || subtle.ConstantTimeCompare([]byte(selected.Bearer), []byte(s.config.StorageToken)) != 1 {
 		w.WriteHeader(401)
 		return
 	}
@@ -68,10 +76,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	base, token := s.config.GenerationURL, s.config.GenerationToken
 	switch r.URL.Path {
 	case "/internal/v1/checks/access":
+		if !s.config.DevFixture {
+			w.WriteHeader(404)
+			return
+		}
 		base, token = s.config.FixtureURL, s.config.FixtureToken
 	case "/internal/v1/checks/publishable", "/internal/v1/checks/pin-owner":
 	default:
 		w.WriteHeader(404)
+		return
+	}
+	if authn.RequireMediaType(r, "application/json") != nil {
+		w.WriteHeader(400)
 		return
 	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
@@ -94,7 +110,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			base, token = s.config.ProjectsURL, s.config.ProjectsToken
 		case check.HolderID == "leafrun-generation" && check.HolderDomain == "service":
 		case check.HolderID == "demo" && check.HolderDomain == "core":
-			base, token = s.config.FixtureURL, s.config.FixtureToken
+			if s.config.DevFixture {
+				base, token = s.config.FixtureURL, s.config.FixtureToken
+			} else {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(storagev1.PinOwnerDecision{State: storagev1.OwnerUnknown})
+				return
+			}
 		default:
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(storagev1.PinOwnerDecision{State: storagev1.OwnerUnknown})

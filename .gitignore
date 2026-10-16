@@ -1,4 +1,5 @@
 .env
+.env.e06
 .cache/
 *.exe
 bin/

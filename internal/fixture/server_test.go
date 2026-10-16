@@ -9,6 +9,15 @@ import (
 	"testing"
 )
 
+func TestTechnicalReadinessNeedsNoTenantPolicyInput(t *testing.T) {
+	s := New("owner-token", "admin-token")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if w.Code != http.StatusNoContent || w.Body.Len() != 0 {
+		t.Fatalf("technical readiness: %d", w.Code)
+	}
+}
+
 func TestChecksDenyWithoutEvidence(t *testing.T) {
 	s := New("owner-token", "admin-token")
 	check := func(path, token string, body any) *httptest.ResponseRecorder {

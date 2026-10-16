@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1.7
+FROM golang:1.27.0-bookworm@sha256:ded31c68586d2e49e760acc2e65a884b23d032e9bbbed0ae0c55abd3fcaf4452 AS build
+WORKDIR /src
+COPY --from=contracts . ./contracts
+COPY --from=platform . ./platform
+COPY --from=access . ./access
+RUN printf 'go 1.27.0\nuse (\n ./access\n ./contracts\n ./platform\n)\nreplace github.com/leafrun/leafrun-contracts v0.1.0 => ./contracts\nreplace github.com/leafrun/leafrun-platform v0.1.0 => ./platform\n' > go.work
+WORKDIR /src/access
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 go build -buildvcs=false -trimpath -o /out/leafrun-access ./cmd/leafrun-access
+FROM build AS checks
+RUN go mod download
+ENTRYPOINT ["go", "test"]
+CMD ["-count=1", "-v", "./..."]
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+COPY --from=build /out/leafrun-access /leafrun-access
+USER 65532:65532
+ENTRYPOINT ["/leafrun-access"]

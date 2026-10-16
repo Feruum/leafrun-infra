@@ -1,0 +1,38 @@
+serve:
+  public:
+    port: 4444
+  admin:
+    port: 4445
+urls:
+  self:
+    issuer: http://127.0.0.1:54444/
+    public: http://127.0.0.1:54444/
+    admin: http://hydra:4445/
+  login: http://127.0.0.1:58197/oauth/login
+  consent: http://127.0.0.1:58197/oauth/consent
+  error: http://127.0.0.1:58197/oauth/error
+strategies:
+  scope: exact
+  access_token: opaque
+oauth2:
+  pkce:
+    enforced: true
+    enforced_for_public_clients: true
+  grant:
+    refresh_token:
+      rotation_grace_period: 0s
+      rotation_grace_reuse_count: 0
+oidc:
+  subject_identifiers:
+    supported_types: [public]
+  dynamic_client_registration:
+    enabled: false
+ttl:
+  login_consent_request: 10m
+  auth_code: 2m
+  access_token: 5m
+  refresh_token: 1h
+log:
+  level: error
+  format: json
+  leak_sensitive_values: false

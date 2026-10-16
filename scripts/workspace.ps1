@@ -1,10 +1,12 @@
-param([string]$IntegrationsDirectory=$env:LEAFRUN_INTEGRATIONS_DIR)
+param([string]$IntegrationsDirectory=$env:LEAFRUN_INTEGRATIONS_DIR,[switch]$FullE06)
 $ErrorActionPreference='Stop'
 $infraRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $taskRoot=[IO.Path]::GetFullPath((Join-Path $infraRoot '..'))
 if(-not $IntegrationsDirectory){foreach($candidate in @((Join-Path $taskRoot 'integrations'),(Join-Path $taskRoot '../integrations'))){if(Test-Path -LiteralPath (Join-Path $candidate 'go.mod')){$IntegrationsDirectory=[IO.Path]::GetFullPath($candidate);break}}}
 if(-not $IntegrationsDirectory){throw 'Set LEAFRUN_INTEGRATIONS_DIR to the M02 integrations checkout'}
 $paths=@{core=(Join-Path $taskRoot 'core');contracts=(Join-Path $taskRoot 'contracts');storage=(Join-Path $taskRoot 'storage');generation=(Join-Path $taskRoot 'generation');projects=(Join-Path $taskRoot 'projects');platform=(Join-Path $taskRoot 'platform');infra=$infraRoot;integrations=[IO.Path]::GetFullPath($IntegrationsDirectory)}
+foreach($optionalModule in @('access','audit')){ $optionalPath=Join-Path $taskRoot $optionalModule; if(Test-Path -LiteralPath (Join-Path $optionalPath 'go.mod')){$paths[$optionalModule]=$optionalPath} }
+if($FullE06){foreach($requiredModule in @('access','audit')){if(-not $paths.ContainsKey($requiredModule)){throw "E06 requires the $requiredModule checkout"}}}
 foreach($path in $paths.Values){if(-not(Test-Path -LiteralPath (Join-Path $path 'go.mod'))){throw "Missing module checkout: $path"}}
 $runtime=Join-Path $infraRoot '.cache'
 [IO.Directory]::CreateDirectory($runtime)|Out-Null
